@@ -1,0 +1,15 @@
+{
+  "name": "vasudha-seller-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix server run setup",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "db:seed": "npm --prefix server run db:seed",
+    "db:push": "npm --prefix server run db:push",
+    "db:studio": "npm --prefix server run db:studio"
+  }
+}

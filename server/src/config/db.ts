@@ -8,6 +8,12 @@ export async function connectMongoDB(): Promise<typeof mongoose> {
     return mongoose;
   }
 
+  if (!env.MONGODB_URI) {
+    const errorMsg = '⚠️ MongoDB URI is missing. Please set MONGODB_URI (or MONGO_URL / DATABASE_URL) in your Railway Environment Variables.';
+    console.warn(errorMsg);
+    throw new Error(errorMsg);
+  }
+
   try {
     const conn = await mongoose.connect(env.MONGODB_URI);
     isConnected = true;
@@ -17,9 +23,6 @@ export async function connectMongoDB(): Promise<typeof mongoose> {
     return conn;
   } catch (error) {
     console.error('❌ Failed to establish MongoDB Connection:', error);
-    if (!env.IS_PRODUCTION) {
-      process.exit(1);
-    }
     throw error;
   }
 }

@@ -10,6 +10,8 @@ const candidatePaths = [
   path.resolve(__dirname, '../../../.env'),
 ];
 
+dotenv.config();
+
 for (const envPath of candidatePaths) {
   if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });
@@ -17,12 +19,32 @@ for (const envPath of candidatePaths) {
   }
 }
 
+// Support MONGODB_URI, MONGO_URL, MONGODB_URL, DATABASE_URL (Railway standard)
+const rawMongoUri =
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URL ||
+  process.env.MONGODB_URL ||
+  process.env.DATABASE_URL;
+
+// Strip surrounding quotes if pasted into cloud UI with quotes
+const cleanMongoUri = rawMongoUri
+  ? rawMongoUri.trim().replace(/^["']|["']$/g, '')
+  : '';
+
+const cleanJwtSecret = process.env.JWT_SECRET
+  ? process.env.JWT_SECRET.trim().replace(/^["']|["']$/g, '')
+  : 'roy';
+
+const cleanJwtExpiresIn = process.env.JWT_EXPIRES_IN
+  ? process.env.JWT_EXPIRES_IN.trim().replace(/^["']|["']$/g, '')
+  : '24h';
+
 export const env = {
-  PORT: process.env.PORT,
-  MONGODB_URI: process.env.MONGODB_URI as string,
-  JWT_SECRET: process.env.JWT_SECRET as string,
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN as string,
-  APP_ENV: process.env.APP_ENV,
+  PORT: process.env.PORT || '5000',
+  MONGODB_URI: cleanMongoUri,
+  JWT_SECRET: cleanJwtSecret,
+  JWT_EXPIRES_IN: cleanJwtExpiresIn,
+  APP_ENV: process.env.APP_ENV || process.env.NODE_ENV || 'development',
   APP_DEBUG: process.env.APP_DEBUG === 'true',
-  IS_PRODUCTION: process.env.APP_ENV === 'production',
+  IS_PRODUCTION: process.env.APP_ENV === 'production' || process.env.NODE_ENV === 'production',
 };

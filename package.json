@@ -1,0 +1,25 @@
+{
+  "name": "vendor-manager",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build --workspaces",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "start": "npm run start --workspace=server",
+    "start:server": "npm run start --workspace=server",
+    "setup": "npm run setup:env && npm install && npm run seed",
+    "setup:env": "node -e \"if (!require('fs').existsSync('.env')) require('fs').copyFileSync('.env.example', '.env')\"",
+    "seed": "npm run seed --workspace=server",
+    "test:api": "npm run test:api --workspace=server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

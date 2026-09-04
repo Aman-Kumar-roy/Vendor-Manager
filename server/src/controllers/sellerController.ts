@@ -9,7 +9,7 @@ export class SellerController {
     try {
       const search = req.query.search ? String(req.query.search).trim() : '';
 
-      let filter = {};
+      let filter: any = {};
       if (search) {
         filter = {
           $or: [
@@ -20,13 +20,27 @@ export class SellerController {
         };
       }
 
-      const sellers = await SellerModel.find(filter).sort({ createdAt: -1 }).lean();
+      const totalSellers = await SellerModel.countDocuments(filter);
 
-      // Dynamically calculate totals for each seller
-      const sellersWithTotals = await Promise.all(
-        sellers.map(async (seller) => {
-          const totals = await TransactionModel.aggregate([
-            { $match: { sellerId: seller._id } },
+      // Pagination
+      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+      const limit = Math.max(1, parseInt(req.query.limit as string, 10) || 10);
+      const skip = (page - 1) * limit;
+      const totalPages = Math.ceil(totalSellers / limit) || 1;
+
+      // Fetch only the current page of sellers
+      const pageSellers = await SellerModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      // Aggregate totals ONLY for the sellers on the current page
+      const pageSellerIds = pageSellers.map((s) => s._id);
+
+      const perSellerTotals = pageSellerIds.length > 0
+        ? await TransactionModel.aggregate([
+            { $match: { sellerId: { $in: pageSellerIds } } },
             {
               $group: {
                 _id: '$sellerId',
@@ -47,56 +61,98 @@ export class SellerController {
                 },
               },
             },
-          ]);
+          ])
+        : [];
 
-          const totalDeliveries = totals[0]?.totalDeliveries || 0;
-          const totalPaid = totals[0]?.totalPaid || 0;
-          const totalDues = totalDeliveries - totalPaid;
-          const tank500 = totals[0]?.tank500 || 0;
-          const tank1000 = totals[0]?.tank1000 || 0;
-          const tank2000 = totals[0]?.tank2000 || 0;
-          const totalTanks = tank500 + tank1000 + tank2000;
+      const totalsMap = new Map<string, any>();
+      for (const t of perSellerTotals) {
+        totalsMap.set(t._id.toString(), t);
+      }
 
-          return {
-            id: seller._id.toString(),
-            name: seller.name,
-            email: seller.email || null,
-            phone: seller.phone || null,
-            address: seller.address || null,
-            gstNumber: seller.gstNumber || null,
-            totalDeliveries,
-            totalPaid,
-            totalDues,
-            tank500,
-            tank1000,
-            tank2000,
-            totalTanks,
-            createdAt: seller.createdAt,
-          };
-        })
-      );
+      const formattedSellers = pageSellers.map((seller) => {
+        const t = totalsMap.get(seller._id.toString());
+        const totalDeliveries = Math.round((t?.totalDeliveries || 0) * 100) / 100;
+        const totalPaid = Math.round((t?.totalPaid || 0) * 100) / 100;
+        const totalDues = Math.round((totalDeliveries - totalPaid) * 100) / 100;
+        const tank500 = t?.tank500 || 0;
+        const tank1000 = t?.tank1000 || 0;
+        const tank2000 = t?.tank2000 || 0;
+        const totalTanks = tank500 + tank1000 + tank2000;
 
-      const totalDeliveries = sellersWithTotals.reduce((sum, s) => sum + s.totalDeliveries, 0);
-      const totalPaid = sellersWithTotals.reduce((sum, s) => sum + s.totalPaid, 0);
-      const totalDues = totalDeliveries - totalPaid;
-      const totalTank500 = sellersWithTotals.reduce((sum, s) => sum + (s.tank500 || 0), 0);
-      const totalTank1000 = sellersWithTotals.reduce((sum, s) => sum + (s.tank1000 || 0), 0);
-      const totalTank2000 = sellersWithTotals.reduce((sum, s) => sum + (s.tank2000 || 0), 0);
-      const totalTanks = totalTank500 + totalTank1000 + totalTank2000;
+        return {
+          id: seller._id.toString(),
+          name: seller.name,
+          email: seller.email || null,
+          phone: seller.phone || null,
+          address: seller.address || null,
+          gstNumber: seller.gstNumber || null,
+          totalDeliveries,
+          totalPaid,
+          totalDues,
+          tank500,
+          tank1000,
+          tank2000,
+          totalTanks,
+          createdAt: seller.createdAt,
+        };
+      });
+
+      // Global Summary across database in a single fast aggregation
+      const [globalTotalsAgg, totalAllSellersCount] = await Promise.all([
+        TransactionModel.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalDeliveries: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$amount', 0] },
+              },
+              totalPaid: {
+                $sum: { $cond: [{ $eq: ['$type', 'PAYMENT'] }, '$amount', 0] },
+              },
+              tank500: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank500', 0] },
+              },
+              tank1000: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank1000', 0] },
+              },
+              tank2000: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank2000', 0] },
+              },
+            },
+          },
+        ]),
+        search ? SellerModel.countDocuments() : Promise.resolve(totalSellers),
+      ]);
+
+      const globalDeliveries = Math.round((globalTotalsAgg[0]?.totalDeliveries || 0) * 100) / 100;
+      const globalPaid = Math.round((globalTotalsAgg[0]?.totalPaid || 0) * 100) / 100;
+      const globalDues = Math.round((globalDeliveries - globalPaid) * 100) / 100;
+      const globalTank500 = globalTotalsAgg[0]?.tank500 || 0;
+      const globalTank1000 = globalTotalsAgg[0]?.tank1000 || 0;
+      const globalTank2000 = globalTotalsAgg[0]?.tank2000 || 0;
+      const globalTotalTanks = globalTank500 + globalTank1000 + globalTank2000;
 
       res.status(200).json({
         success: true,
         data: {
-          sellers: sellersWithTotals,
+          sellers: formattedSellers,
+          pagination: {
+            total: totalSellers,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+          },
           summary: {
-            totalSellers: sellersWithTotals.length,
-            totalDeliveries,
-            totalPaid,
-            totalDues,
-            totalTank500,
-            totalTank1000,
-            totalTank2000,
-            totalTanks,
+            totalSellers: totalAllSellersCount,
+            totalDeliveries: globalDeliveries,
+            totalPaid: globalPaid,
+            totalDues: globalDues,
+            totalTank500: globalTank500,
+            totalTank1000: globalTank1000,
+            totalTank2000: globalTank2000,
+            totalTanks: globalTotalTanks,
           },
         },
       });
@@ -122,7 +178,7 @@ export class SellerController {
       }
 
       const transactions = await TransactionModel.find({ sellerId: seller._id })
-        .sort({ date: -1 })
+        .sort({ date: -1, createdAt: -1 })
         .lean();
 
       let totalDeliveries = 0;
@@ -131,22 +187,38 @@ export class SellerController {
       let totalTank1000 = 0;
       let totalTank2000 = 0;
 
-      const formattedTransactions = transactions.map((tx) => {
+      // Group payments by parentId and map deliveries
+      const paymentsByParentId = new Map<string, any[]>();
+      const deliveryMap = new Map<string, any>();
+
+      for (const tx of transactions) {
+        const txId = tx._id.toString();
         if (tx.type === 'DELIVERY') {
           totalDeliveries += tx.amount;
           totalTank500 += tx.tank500 || 0;
           totalTank1000 += tx.tank1000 || 0;
           totalTank2000 += tx.tank2000 || 0;
+          deliveryMap.set(txId, tx);
         } else if (tx.type === 'PAYMENT') {
           totalPaid += tx.amount;
+          if (tx.parentId) {
+            const pid = tx.parentId.toString();
+            if (!paymentsByParentId.has(pid)) {
+              paymentsByParentId.set(pid, []);
+            }
+            paymentsByParentId.get(pid)!.push(tx);
+          }
         }
+      }
 
-        return {
-          id: tx._id.toString(),
+      const formattedTransactions = transactions.map((tx) => {
+        const txId = tx._id.toString();
+        const baseTx: any = {
+          id: txId,
           sellerId: tx.sellerId.toString(),
           parentId: tx.parentId ? tx.parentId.toString() : null,
           type: tx.type,
-          amount: tx.amount,
+          amount: Math.round(tx.amount * 100) / 100,
           date: tx.date,
           note: tx.note || null,
           tank500: tx.tank500 || 0,
@@ -155,6 +227,47 @@ export class SellerController {
           paymentMode: tx.paymentMode || null,
           createdAt: tx.createdAt,
         };
+
+        if (tx.type === 'DELIVERY') {
+          const rawLinked = paymentsByParentId.get(txId) || [];
+          const linkedPayments = rawLinked.map((p) => ({
+            id: p._id.toString(),
+            sellerId: p.sellerId.toString(),
+            parentId: txId,
+            type: p.type,
+            amount: Math.round(p.amount * 100) / 100,
+            date: p.date,
+            note: p.note || null,
+            paymentMode: p.paymentMode || null,
+            createdAt: p.createdAt,
+          }));
+
+          const rawPaid = linkedPayments.reduce((sum, p) => sum + p.amount, 0);
+          const paidAmount = Math.round(rawPaid * 100) / 100;
+          const remainingDue = Math.max(0, Math.round((baseTx.amount - paidAmount) * 100) / 100);
+
+          baseTx.paidAmount = paidAmount;
+          baseTx.remainingDue = remainingDue;
+          baseTx.linkedPayments = linkedPayments;
+        } else if (tx.type === 'PAYMENT') {
+          if (tx.parentId) {
+            const parent = deliveryMap.get(tx.parentId.toString());
+            if (parent) {
+              baseTx.parentDelivery = {
+                id: parent._id.toString(),
+                date: parent.date,
+                amount: Math.round(parent.amount * 100) / 100,
+                note: parent.note || null,
+              };
+            } else {
+              baseTx.parentDelivery = null;
+            }
+          } else {
+            baseTx.parentDelivery = null;
+          }
+        }
+
+        return baseTx;
       });
 
       const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
@@ -164,7 +277,9 @@ export class SellerController {
       const startIndex = (page - 1) * limit;
       const paginatedTransactions = formattedTransactions.slice(startIndex, startIndex + limit);
 
-      const totalDues = totalDeliveries - totalPaid;
+      totalDeliveries = Math.round(totalDeliveries * 100) / 100;
+      totalPaid = Math.round(totalPaid * 100) / 100;
+      const totalDues = Math.round((totalDeliveries - totalPaid) * 100) / 100;
       const totalTanks = totalTank500 + totalTank1000 + totalTank2000;
 
       res.status(200).json({

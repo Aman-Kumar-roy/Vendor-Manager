@@ -54,8 +54,23 @@
 - Use React state for field-level errors (red text underneath fields).
 - Never use native browser validation popups or `window.alert()`.
 - Never use native browser `<input type="date">` or `<input type="month">` date pickers that display OS light-mode popups. Always use custom dark glassmorphism components (`CustomDatePicker`, `CustomMonthPicker`).
+- Custom pickers and dropdowns (`CustomDatePicker`, `CustomMonthPicker`, Linked Delivery Selector) must implement intelligent upward opening (`openUpward`) when space below the viewport is constrained (< 340px).
+- Modal bodies must include scrollable containers (`max-h-[calc(90vh-9rem)] overflow-y-auto`) so child inputs and pickers are never cut off on mobile devices.
+- Receipt preview modals must use vertical `flex-col` containers to prevent side-by-side squishing on mobile screens.
 - Ensure high contrast in both Light Mode and Dark Mode.
 - Table rows MUST be clickable with `cursor-pointer` and hover highlight. Action buttons MUST include `e.stopPropagation()`.
+- Main table rows must remain uncluttered: do NOT display tank count breakdown pills directly inside rows or under seller names; users click the row to inspect full tank distributions in `OrderDetailsModal`.
 
-### 7. Automated API Testing
+### 7. Mobile Responsiveness & Dual-Layout Architecture
+- All table views (`SellerTable`, `TransactionTable`, `ReceiptsPage`, `ReportsPage`) must implement a dual-layout pattern:
+  - Mobile Card View (`md:hidden`): Touch-friendly, high-contrast cards showing clear metrics, status pills, and direct action buttons without horizontal cut-off.
+  - Desktop Table View (`hidden md:block`): Comprehensive multi-column data grid.
+- Network Mobile Access: `api.client.ts` uses dynamic hostname fallback to `/api/v1` so Vite proxies requests seamlessly when accessing the web client from mobile phones over the local Wi-Fi network.
+
+### 8. Currency & Financial Precision
+- Server calculations: Dynamic totals and monetary fields must be rounded to 2 decimal places (`Math.round(val * 100) / 100`) in controllers.
+- Client formatting: All currency formatters (`formatCurrency`, `fmt`) must specify `minimumFractionDigits: 2, maximumFractionDigits: 2` to guarantee exact alignment to the paisa across summary cards, table rows, and receipt vouchers.
+
+### 9. Automated API Testing
 - All endpoints must pass `npm run test:api` before deployment.
+

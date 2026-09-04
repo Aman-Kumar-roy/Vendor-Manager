@@ -1,10 +1,17 @@
 import { apiClient } from '../../services/api.client';
 import { Seller, SellerSummary, CreateSellerDto, CreateTransactionDto, Transaction } from './types';
 
+export interface GetSellersParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
 export interface GetSellersResponse {
   success: boolean;
   data: {
     sellers: Seller[];
+    pagination?: PaginationMeta;
     summary: SellerSummary;
   };
 }
@@ -38,8 +45,8 @@ export interface CreateTransactionResponse {
 }
 
 export const sellerApi = {
-  getSellers: async (): Promise<GetSellersResponse> => {
-    const res = await apiClient.get<GetSellersResponse>('/sellers');
+  getSellers: async (params?: GetSellersParams): Promise<GetSellersResponse> => {
+    const res = await apiClient.get<GetSellersResponse>('/sellers', { params });
     return res.data;
   },
 

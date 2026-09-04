@@ -6,75 +6,93 @@ export class ReportController {
   // GET /api/v1/reports/summary
   public static async getSummaryReport(req: Request, res: Response): Promise<void> {
     try {
-      const sellers = await SellerModel.find().lean();
-      const transactions = await TransactionModel.find().lean();
+      const [totalsAgg, topDeliveriesAgg, totalSellers] = await Promise.all([
+        TransactionModel.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalBilledSales: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$amount', 0] },
+              },
+              totalClearedPayments: {
+                $sum: { $cond: [{ $eq: ['$type', 'PAYMENT'] }, '$amount', 0] },
+              },
+              tank500: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank500', 0] },
+              },
+              tank1000: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank1000', 0] },
+              },
+              tank2000: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank2000', 0] },
+              },
+            },
+          },
+        ]),
+        TransactionModel.aggregate([
+          {
+            $group: {
+              _id: '$sellerId',
+              totalDeliveries: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$amount', 0] },
+              },
+              totalPaid: {
+                $sum: { $cond: [{ $eq: ['$type', 'PAYMENT'] }, '$amount', 0] },
+              },
+            },
+          },
+          { $sort: { totalDeliveries: -1 } },
+          { $limit: 3 },
+          {
+            $lookup: {
+              from: 'sellers',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'seller',
+            },
+          },
+          { $unwind: { path: '$seller', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 0,
+              name: { $ifNull: ['$seller.name', 'Vendor Account'] },
+              totalDeliveries: 1,
+              totalPaid: 1,
+              totalDues: { $subtract: ['$totalDeliveries', '$totalPaid'] },
+            },
+          },
+        ]),
+        SellerModel.countDocuments(),
+      ]);
 
-      let totalBilledSales = 0;
-      let totalClearedPayments = 0;
+      const totalBilledSalesRounded = Math.round((totalsAgg[0]?.totalBilledSales || 0) * 100) / 100;
+      const totalClearedPaymentsRounded = Math.round((totalsAgg[0]?.totalClearedPayments || 0) * 100) / 100;
+      const totalOutstandingDues = Math.round((totalBilledSalesRounded - totalClearedPaymentsRounded) * 100) / 100;
+      const collectionEfficiencyRate = totalBilledSalesRounded > 0
+        ? (totalClearedPaymentsRounded / totalBilledSalesRounded) * 100
+        : 100;
 
-      let tank500Units = 0;
-      let tank1000Units = 0;
-      let tank2000Units = 0;
-
-      const sellerMetricsMap = new Map<string, { name: string; totalDeliveries: number; totalPaid: number; totalDues: number }>();
-
-      sellers.forEach((s) => {
-        sellerMetricsMap.set(s._id.toString(), {
-          name: s.name,
-          totalDeliveries: 0,
-          totalPaid: 0,
-          totalDues: 0,
-        });
-      });
-
-      transactions.forEach((tx) => {
-        const sellerIdStr = tx.sellerId.toString();
-        const sellerEntry = sellerMetricsMap.get(sellerIdStr);
-
-        if (tx.type === 'DELIVERY') {
-          totalBilledSales += tx.amount;
-          tank500Units += tx.tank500 || 0;
-          tank1000Units += tx.tank1000 || 0;
-          tank2000Units += tx.tank2000 || 0;
-
-          if (sellerEntry) {
-            sellerEntry.totalDeliveries += tx.amount;
-          }
-        } else if (tx.type === 'PAYMENT') {
-          totalClearedPayments += tx.amount;
-          if (sellerEntry) {
-            sellerEntry.totalPaid += tx.amount;
-          }
-        }
-      });
-
-      // Calculate dues per seller
-      const leaderboards = Array.from(sellerMetricsMap.values()).map((entry) => ({
-        ...entry,
-        totalDues: entry.totalDeliveries - entry.totalPaid,
+      const topSellers = topDeliveriesAgg.map((s: any) => ({
+        name: s.name,
+        totalDeliveries: Math.round(s.totalDeliveries * 100) / 100,
+        totalPaid: Math.round(s.totalPaid * 100) / 100,
+        totalDues: Math.round((s.totalDues || 0) * 100) / 100,
       }));
-
-      // Top 3 sellers by total billed sales
-      leaderboards.sort((a, b) => b.totalDeliveries - a.totalDeliveries);
-      const topSellers = leaderboards.slice(0, 3);
-
-      const totalOutstandingDues = totalBilledSales - totalClearedPayments;
-      const collectionEfficiencyRate = totalBilledSales > 0 ? (totalClearedPayments / totalBilledSales) * 100 : 100;
 
       res.status(200).json({
         success: true,
         data: {
           metrics: {
-            totalSellers: sellers.length,
-            totalBilledSales,
-            totalClearedPayments,
+            totalSellers,
+            totalBilledSales: totalBilledSalesRounded,
+            totalClearedPayments: totalClearedPaymentsRounded,
             totalOutstandingDues,
             collectionEfficiencyRate: Number(collectionEfficiencyRate.toFixed(1)),
           },
           tankBreakdown: {
-            tank500: tank500Units,
-            tank1000: tank1000Units,
-            tank2000: tank2000Units,
+            tank500: totalsAgg[0]?.tank500 || 0,
+            tank1000: totalsAgg[0]?.tank1000 || 0,
+            tank2000: totalsAgg[0]?.tank2000 || 0,
           },
           topSellers,
         },
@@ -88,7 +106,6 @@ export class ReportController {
   public static async getTankSummaryReport(req: Request, res: Response): Promise<void> {
     try {
       const { month, startDate: startParam, endDate: endParam } = req.query;
-      const sellers = await SellerModel.find().lean();
 
       let dateFilter: any = {};
       let periodLabel = 'All Time';
@@ -120,47 +137,43 @@ export class ReportController {
         }
       }
 
-      const transactions = await TransactionModel.find({
-        type: 'DELIVERY',
-        ...dateFilter,
-      }).lean();
-
-      const summaryMap = new Map<string, { sellerId: string; sellerName: string; total500: number; total1000: number; total2000: number; totalOrders: number }>();
-
-      sellers.forEach((s) => {
-        summaryMap.set(s._id.toString(), {
-          sellerId: s._id.toString(),
-          sellerName: s.name,
-          total500: 0,
-          total1000: 0,
-          total2000: 0,
-          totalOrders: 0,
-        });
-      });
-
-      transactions.forEach((tx) => {
-        const sid = tx.sellerId.toString();
-        let entry = summaryMap.get(sid);
-        if (!entry) {
-          entry = {
-            sellerId: sid,
-            sellerName: 'Vendor Account',
-            total500: 0,
-            total1000: 0,
-            total2000: 0,
-            totalOrders: 0,
-          };
-          summaryMap.set(sid, entry);
-        }
-
-        entry.total500 += tx.tank500 || 0;
-        entry.total1000 += tx.tank1000 || 0;
-        entry.total2000 += tx.tank2000 || 0;
-        entry.totalOrders += (tx.tank500 || 0) + (tx.tank1000 || 0) + (tx.tank2000 || 0);
-      });
-
-      const summary = Array.from(summaryMap.values());
-      summary.sort((a, b) => b.totalOrders - a.totalOrders);
+      const summary = await TransactionModel.aggregate([
+        {
+          $match: {
+            type: 'DELIVERY',
+            ...dateFilter,
+          },
+        },
+        {
+          $group: {
+            _id: '$sellerId',
+            total500: { $sum: '$tank500' },
+            total1000: { $sum: '$tank1000' },
+            total2000: { $sum: '$tank2000' },
+          },
+        },
+        {
+          $lookup: {
+            from: 'sellers',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'seller',
+          },
+        },
+        { $unwind: { path: '$seller', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            sellerId: { $toString: '$_id' },
+            sellerName: { $ifNull: ['$seller.name', 'Vendor Account'] },
+            total500: '$total500',
+            total1000: '$total1000',
+            total2000: '$total2000',
+            totalOrders: { $add: ['$total500', '$total1000', '$total2000'] },
+          },
+        },
+        { $sort: { totalOrders: -1 } },
+      ]);
 
       res.status(200).json({
         success: true,

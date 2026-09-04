@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { sellerApi } from '../api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { sellerApi, PaginationMeta } from '../api';
 import { Seller, SellerSummary, CreateSellerDto } from '../types';
 import { SellerTable } from '../components/SellerTable';
 import { AddSellerModal } from '../components/AddSellerModal';
@@ -23,8 +23,18 @@ export const SellerListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
 
@@ -41,36 +51,43 @@ export const SellerListPage: React.FC = () => {
     message: '',
   });
 
-  const fetchSellers = async () => {
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchSellers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await sellerApi.getSellers();
+      const response = await sellerApi.getSellers({
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch.trim() || undefined,
+      });
       if (response.success && response.data) {
-        const rawData = response.data as any;
-        const sellersList = Array.isArray(rawData) ? rawData : (rawData.sellers || []);
-        const summaryData = Array.isArray(rawData)
-          ? {
-              totalSellers: sellersList.length,
-              totalDeliveries: sellersList.reduce((acc: number, s: any) => acc + (s.totalDeliveries || 0), 0),
-              totalPaid: sellersList.reduce((acc: number, s: any) => acc + (s.totalPaid || 0), 0),
-              totalDues: sellersList.reduce((acc: number, s: any) => acc + (s.totalDues || 0), 0),
-            }
-          : (rawData.summary || { totalSellers: 0, totalDeliveries: 0, totalPaid: 0, totalDues: 0 });
-
-        setSellers(sellersList);
-        setSummary(summaryData);
+        setSellers(response.data.sellers || []);
+        if (response.data.summary) {
+          setSummary(response.data.summary);
+        }
+        if (response.data.pagination) {
+          setPaginationMeta(response.data.pagination);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to load sellers list');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch]);
 
   useEffect(() => {
     fetchSellers();
-  }, []);
+  }, [fetchSellers]);
 
   const handleAddSeller = async (dto: CreateSellerDto) => {
     const res = await sellerApi.createSeller(dto);
@@ -106,31 +123,9 @@ export const SellerListPage: React.FC = () => {
     });
   };
 
-
-  // Filtered sellers search
-  const filteredSellers = useMemo(() => {
-    if (!searchQuery.trim()) return sellers;
-    const query = searchQuery.toLowerCase().trim();
-    return sellers.filter(
-      (s) =>
-        s.name.toLowerCase().includes(query) ||
-        (s.phone && s.phone.includes(query)) ||
-        (s.email && s.email.toLowerCase().includes(query))
-    );
-  }, [sellers, searchQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredSellers.length / pageSize));
-  const paginatedSellers = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredSellers.slice(startIndex, startIndex + pageSize);
-  }, [filteredSellers, currentPage, pageSize]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredSellers, pageSize]);
-
-  const showingStart = filteredSellers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const showingEnd = Math.min(filteredSellers.length, currentPage * pageSize);
+  const totalPages = paginationMeta.totalPages || 1;
+  const showingStart = paginationMeta.total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const showingEnd = Math.min(paginationMeta.total, currentPage * pageSize);
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
@@ -152,7 +147,8 @@ export const SellerListPage: React.FC = () => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(val).replace('₹', '₹ ');
   };
 
@@ -248,7 +244,7 @@ export const SellerListPage: React.FC = () => {
         </div>
         {searchQuery && (
           <span className="text-xs text-slate-500">
-            <span className="text-white font-bold">{filteredSellers.length}</span> result{filteredSellers.length !== 1 ? 's' : ''}
+            <span className="text-white font-bold">{paginationMeta.total}</span> result{paginationMeta.total !== 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -269,7 +265,7 @@ export const SellerListPage: React.FC = () => {
       ) : (
         <>
           <SellerTable
-            sellers={paginatedSellers}
+            sellers={sellers}
             onDeleteSeller={handleDeleteSeller}
             onEditSeller={(seller) => setEditingSeller(seller)}
           />
@@ -280,7 +276,7 @@ export const SellerListPage: React.FC = () => {
             <div className="text-xs text-slate-400">
               Showing <span className="font-bold text-white">{showingStart}</span> to{" "}
               <span className="font-bold text-white">{showingEnd}</span> of{" "}
-              <span className="font-bold text-brand-400">{filteredSellers.length}</span> sellers
+              <span className="font-bold text-brand-400">{paginationMeta.total}</span> sellers
             </div>
 
             {/* Middle: Rows Per Page Selector */}

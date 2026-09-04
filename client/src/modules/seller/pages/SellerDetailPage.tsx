@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sellerApi } from "../api";
-import { Seller, CreateSellerDto, CreateTransactionDto, Transaction } from "../types";
+import { Seller, CreateSellerDto, CreateTransactionDto, Transaction, TransactionType } from "../types";
 import { TransactionTable } from "../components/TransactionTable";
 import { AddTransactionModal } from "../components/AddTransactionModal";
 import { TransactionReceipt } from "../components/TransactionReceipt";
@@ -44,6 +44,8 @@ export const SellerDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddTxModalOpen, setIsAddTxModalOpen] = useState(false);
+  const [preselectedDeliveryId, setPreselectedDeliveryId] = useState<string | undefined>(undefined);
+  const [initialTxType, setInitialTxType] = useState<TransactionType | undefined>(undefined);
   const [isEditSellerModalOpen, setIsEditSellerModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -237,7 +239,11 @@ export const SellerDetailPage: React.FC = () => {
           )}
 
           <button
-            onClick={() => setIsAddTxModalOpen(true)}
+            onClick={() => {
+              setPreselectedDeliveryId(undefined);
+              setInitialTxType('DELIVERY');
+              setIsAddTxModalOpen(true);
+            }}
             className="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold !text-white transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer shadow-glow"
             style={{
               background: "linear-gradient(135deg, #0c8ce9 0%, #026ec7 100%)",
@@ -441,7 +447,11 @@ export const SellerDetailPage: React.FC = () => {
           </h3>
 
           <button
-            onClick={() => setIsAddTxModalOpen(true)}
+            onClick={() => {
+              setPreselectedDeliveryId(undefined);
+              setInitialTxType('DELIVERY');
+              setIsAddTxModalOpen(true);
+            }}
             className="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-bold flex items-center gap-1.5 bg-brand-500/10 px-3 py-1.5 rounded-xl border border-brand-500/20 transition-all hover:bg-brand-500/20 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
@@ -454,7 +464,9 @@ export const SellerDetailPage: React.FC = () => {
           onDeleteTransaction={handleDeleteTransaction}
           onPrintReceipt={(tx) => setReceiptTx(tx)}
           seller={seller}
-          onAddPaymentToOrder={(_deliveryId) => {
+          onAddPaymentToOrder={(deliveryId) => {
+            setPreselectedDeliveryId(deliveryId);
+            setInitialTxType('PAYMENT');
             setIsAddTxModalOpen(true);
           }}
         />
@@ -533,10 +545,16 @@ export const SellerDetailPage: React.FC = () => {
       {/* Add Transaction Modal */}
       <AddTransactionModal
         isOpen={isAddTxModalOpen}
-        onClose={() => setIsAddTxModalOpen(false)}
+        onClose={() => {
+          setIsAddTxModalOpen(false);
+          setPreselectedDeliveryId(undefined);
+          setInitialTxType(undefined);
+        }}
         sellerId={seller.id}
         sellerName={seller.name}
         deliveries={seller.transactions || []}
+        initialDeliveryId={preselectedDeliveryId}
+        initialType={initialTxType}
         onSubmit={handleAddTransaction}
       />
 

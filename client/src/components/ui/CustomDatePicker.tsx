@@ -37,6 +37,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   className = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
 
   // Parse initial state or fallback to today
   const parsedDate = value && value.includes("-") ? new Date(value) : new Date();
@@ -55,6 +56,19 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
       }
     }
   }, [value]);
+
+  // Check available screen space to open upward if near bottom
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 340 && rect.top > 280) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+  }, [isOpen]);
 
   // Handle click outside to close popover
   useEffect(() => {
@@ -136,7 +150,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
       {/* Popover Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 z-50 w-72 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl p-4 shadow-2xl animate-fade-in text-slate-100 select-none">
+        <div className={`absolute left-0 z-[60] w-72 max-w-[calc(100vw-2rem)] bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl p-4 shadow-2xl animate-fade-in text-slate-100 select-none ${openUpward ? "bottom-full mb-2" : "top-full mt-2"}`}>
           {/* Calendar Header */}
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-extrabold text-white tracking-tight">

@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from "react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom";
 import { X } from "lucide-react";
 
@@ -98,7 +98,7 @@ export const Modal: React.FC<ModalProps> = ({
             </div>
 
             {/* Body */}
-            <div className="p-6">{children}</div>
+            <div className="p-4 sm:p-6 max-h-[calc(90vh-9rem)] overflow-y-auto">{children}</div>
 
             {/* Footer */}
             {footer && (

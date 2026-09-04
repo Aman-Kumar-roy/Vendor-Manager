@@ -71,7 +71,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
         className="fixed inset-0 overflow-y-auto print:overflow-visible print:static"
         style={{ zIndex: 9999 }}
       >
-        <div className="flex min-h-full items-center justify-center p-4 print:p-0 print:block">
+        <div className="flex flex-col min-h-full items-center justify-center p-2.5 sm:p-6 print:p-0 print:block">
 
           {/* Screen controls — hidden on print */}
           <div className="print:hidden w-full max-w-lg mb-3 flex items-center justify-between">

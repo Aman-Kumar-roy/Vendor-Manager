@@ -24,11 +24,25 @@ app.use(async (req, res, next) => {
   }
 });
 
+// Helper to resolve client/dist path across various runtimes (ts-node, node dist, Railway root)
+const getClientDistPath = (): string | null => {
+  const candidates = [
+    path.resolve(process.cwd(), 'client/dist'),
+    path.resolve(__dirname, '../../client/dist'),
+    path.resolve(__dirname, '../client/dist'),
+    path.resolve(process.cwd(), '../client/dist'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(path.join(c, 'index.html'))) return c;
+  }
+  return null;
+};
+
 // Root landing endpoint
 app.get('/', (req, res, next) => {
-  const clientDistPath = path.resolve(__dirname, '../../client/dist');
-  if (fs.existsSync(path.join(clientDistPath, 'index.html'))) {
-    return res.sendFile(path.join(clientDistPath, 'index.html'));
+  const clientDist = getClientDistPath();
+  if (clientDist) {
+    return res.sendFile(path.join(clientDist, 'index.html'));
   }
   return res.status(200).json({
     success: true,
@@ -61,12 +75,12 @@ app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/reports', reportRoutes);
 
 // Static client build serving if client/dist exists
-const clientDistPath = path.resolve(__dirname, '../../client/dist');
-if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+const resolvedClientDist = getClientDistPath();
+if (resolvedClientDist) {
+  app.use(express.static(resolvedClientDist));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    const indexPath = path.join(clientDistPath, 'index.html');
+    const indexPath = path.join(resolvedClientDist, 'index.html');
     if (fs.existsSync(indexPath)) {
       return res.sendFile(indexPath);
     }

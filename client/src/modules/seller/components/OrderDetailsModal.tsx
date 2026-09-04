@@ -16,6 +16,8 @@ import {
   Receipt,
   CornerDownRight,
   Droplets,
+  Printer,
+  CreditCard,
 } from 'lucide-react';
 
 interface OrderDetailsModalProps {
@@ -24,6 +26,7 @@ interface OrderDetailsModalProps {
   delivery: Transaction | null;
   onAddPaymentToOrder: (deliveryId: string) => void;
   onDeleteTransaction: (id: string) => void;
+  onPrintReceipt?: (tx: Transaction) => void;
 }
 
 export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
@@ -32,6 +35,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   delivery,
   onAddPaymentToOrder,
   onDeleteTransaction,
+  onPrintReceipt,
 }) => {
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -76,15 +80,15 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
         isOpen={isOpen}
         onClose={onClose}
         title="Delivery Order Breakdown"
-        subtitle={`Detailed view of order bill and associated partial payments`}
+        subtitle="Detailed view of order bill and associated partial payments"
         maxWidth="xl"
       >
         <div className="space-y-6">
           {/* Delivery Header Card */}
-          <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl space-y-3">
+          <div className="bg-slate-950/80 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
                   <Truck className="w-5 h-5" />
                 </div>
                 <div>
@@ -98,23 +102,36 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       <Badge variant="rose">Unpaid</Badge>
                     )}
                   </h4>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">Order ID: {delivery.id}</p>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">Order ID: #{delivery.id.slice(-6).toUpperCase()}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
+                  type="button"
                   onClick={() => {
                     onClose();
                     onAddPaymentToOrder(delivery.id);
                   }}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-glow transition-all cursor-pointer w-max"
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-glow transition-all cursor-pointer w-max shrink-0"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Add Payment to Order</span>
                 </button>
 
+                {onPrintReceipt && (
+                  <button
+                    type="button"
+                    onClick={() => onPrintReceipt(delivery)}
+                    className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer shrink-0"
+                    title="Print Delivery Bill Receipt"
+                  >
+                    <Printer className="w-4 h-4" />
+                  </button>
+                )}
+
                 <button
+                  type="button"
                   onClick={() => {
                     setDeleteConfirm({
                       isOpen: true,
@@ -123,7 +140,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       isMainOrder: true,
                     });
                   }}
-                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
                   title="Delete Delivery Order"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -205,53 +222,158 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           {/* Associated Partial Payments List */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h5 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <CornerDownRight className="w-4 h-4 text-brand-400" />
-                Associated Payments History ({linkedPayments.length})
-              </h5>
+              <div className="flex items-center gap-2">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <CornerDownRight className="w-4 h-4 text-brand-400" />
+                  Associated Payments History
+                </h5>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-800 border border-slate-700 text-slate-300">
+                  {linkedPayments.length}
+                </span>
+              </div>
+
+              {remainingDue > 0 && linkedPayments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onAddPaymentToOrder(delivery.id);
+                  }}
+                  className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Add Payment</span>
+                </button>
+              )}
             </div>
 
             {linkedPayments.length === 0 ? (
-              <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-6 text-center text-xs text-slate-400">
-                No partial payments have been recorded for this delivery order yet. Click "Add Payment to Order" above to log a payment.
+              /* Enhanced Consistent Empty State for Mobile and Web */
+              <div className="bg-slate-950/60 border border-slate-800/90 rounded-2xl p-6 sm:p-7 text-center space-y-3.5 shadow-inner">
+                <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center mx-auto shadow-sm">
+                  <Clock className="w-6 h-6 text-amber-400/80" />
+                </div>
+                <div className="space-y-1">
+                  <h6 className="text-sm font-bold text-white">No Partial Payments Recorded</h6>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    No payment settlements have been linked to this delivery order yet. Click below to record a partial or full payment.
+                  </p>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onAddPaymentToOrder(delivery.id);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer shadow-glow"
+                    style={{
+                      background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    }}
+                  >
+                    <PlusCircle className="w-4 h-4 text-white" />
+                    <span>Add Payment to Order</span>
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              /* High Contrast, Touch-Friendly Payments List */
+              <div className="space-y-2.5">
                 {linkedPayments.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700/80 transition-all text-xs"
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                         <ArrowDownLeft className="w-4 h-4" />
                       </div>
-                      <div>
-                        <p className="font-bold text-white text-sm">
-                          {formatCurrency(p.amount)}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          Paid on {formatDate(p.date)} {p.note ? `• ${p.note}` : ''}
-                        </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-extrabold text-emerald-400 text-sm sm:text-base">
+                            {formatCurrency(p.amount)}
+                          </span>
+                          {p.paymentMode && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 font-bold border border-emerald-500/20 uppercase text-[10px]">
+                              {p.paymentMode.replace('_', ' ')}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            #{p.id.slice(-6).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400 mt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
+                            {formatDate(p.date)}
+                          </span>
+                          {p.note && (
+                            <>
+                              <span className="text-slate-600">•</span>
+                              <span className="flex items-center gap-1 text-slate-300 truncate max-w-xs">
+                                <FileText className="w-3 h-3 text-slate-500 shrink-0" />
+                                {p.note}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setDeleteConfirm({
-                          isOpen: true,
-                          txId: p.id,
-                          label: `Payment of ${formatCurrency(p.amount)}`,
-                          isMainOrder: false,
-                        });
-                      }}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                      title="Delete Payment"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
+                      {onPrintReceipt && (
+                        <button
+                          type="button"
+                          onClick={() => onPrintReceipt(p)}
+                          className="p-1.5 sm:p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                          title="Print Payment Receipt"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteConfirm({
+                            isOpen: true,
+                            txId: p.id,
+                            label: `Payment of ${formatCurrency(p.amount)}`,
+                            isMainOrder: false,
+                          });
+                        }}
+                        className="p-1.5 sm:p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Delete Payment"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
+
+                {/* Settlement Summary Pill */}
+                {remainingDue <= 0 ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Order is fully settled! Total {formatCurrency(paidAmount)} received across {linkedPayments.length} payment{linkedPayments.length === 1 ? '' : 's'}.</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Remaining balance due: {formatCurrency(remainingDue)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onAddPaymentToOrder(delivery.id);
+                      }}
+                      className="text-xs font-bold text-amber-300 hover:text-white underline cursor-pointer"
+                    >
+                      Settle Balance
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

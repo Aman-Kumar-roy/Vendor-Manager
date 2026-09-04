@@ -1,7 +1,23 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../services/api.client";
-import { BarChart2, Droplets, Calendar, ArrowRight, TrendingUp, RefreshCw, AlertCircle, ChevronUp, ChevronDown, Layers } from "lucide-react";
+import {
+  BarChart2,
+  Droplets,
+  Calendar,
+  ArrowRight,
+  TrendingUp,
+  RefreshCw,
+  AlertCircle,
+  ChevronUp,
+  ChevronDown,
+  Layers,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { CustomDateRangePicker, DateRangeValue } from "../../components/ui/CustomDateRangePicker";
 
 interface SellerTankRow {
@@ -36,6 +52,9 @@ export const ReportsPage: React.FC = () => {
   const [error, setError]       = useState<string | null>(null);
   const [sortKey, setSortKey]   = useState<SortKey>("totalOrders");
   const [sortAsc, setSortAsc]   = useState(false);
+  const [search, setSearch]     = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const fetchReport = async () => {
     setLoading(true);
@@ -76,6 +95,42 @@ export const ReportsPage: React.FC = () => {
     });
     return copy;
   }, [rows, sortKey, sortAsc]);
+
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return sorted;
+    const s = search.toLowerCase().trim();
+    return sorted.filter((r) => r.sellerName.toLowerCase().includes(s));
+  }, [sorted, search]);
+
+  const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, range.startDate, range.endDate, pageSize]);
+
+  const showingStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const showingEnd = Math.min(currentPage * pageSize, filteredRows.length);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push("...");
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push("...");
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   const totals = useMemo(() => ({
     t500:    rows.reduce((s, r) => s + r.total500,    0),
@@ -180,6 +235,23 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search vendor in reports..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+          />
+        </div>
+        <div className="text-xs text-slate-400 self-end sm:self-center">
+          Total: <span className="font-bold text-white">{filteredRows.length}</span> active vendors
+        </div>
+      </div>
+
       {/* Table */}
       {loading && rows.length === 0 ? (
         <div className="glass-panel rounded-2xl p-12 text-center border border-slate-800">
@@ -188,7 +260,87 @@ export const ReportsPage: React.FC = () => {
         </div>
       ) : (
         <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-card-dark">
-          <div className="overflow-x-auto">
+          {/* ── Mobile Card View (< md) ── */}
+          <div className="md:hidden divide-y divide-slate-800/60">
+            {filteredRows.length === 0 ? (
+              <div className="py-12 text-center p-4">
+                <Droplets className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-sm font-bold text-slate-300">No tank orders found</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {search ? `No vendors match "${search}"` : `No delivery orders logged for ${range.label}`}
+                </p>
+              </div>
+            ) : (
+              paginatedRows.map((row, idx) => {
+                const globalRank = (currentPage - 1) * pageSize + idx + 1;
+                return (
+                  <div
+                    key={row.sellerId}
+                    onClick={() => navigate(`/sellers/${row.sellerId}`)}
+                    className="p-4 space-y-3 hover:bg-brand-500/[0.04] transition-colors cursor-pointer"
+                  >
+                    {/* Header: Rank + Name + Total Orders */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`text-xs font-extrabold px-2 py-0.5 rounded-lg border ${
+                            globalRank === 1
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
+                              : globalRank === 2
+                              ? "bg-slate-700/30 text-slate-300 border-slate-700"
+                              : globalRank === 3
+                              ? "bg-amber-600/10 text-amber-600 border-amber-600/25"
+                              : "bg-slate-800/40 text-slate-500 border-slate-800"
+                          }`}
+                        >
+                          #{globalRank}
+                        </span>
+                        <h4 className="font-extrabold text-white text-base">
+                          {row.sellerName}
+                        </h4>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-brand-500/10 text-brand-300 border border-brand-500/25 shrink-0">
+                        <Droplets className="w-3.5 h-3.5 text-brand-400" />
+                        <span>{row.totalOrders} Orders</span>
+                      </span>
+                    </div>
+
+                    {/* 3 Tank Size Cards */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/80">
+                      <div className="text-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          500 L
+                        </span>
+                        <span className="font-mono font-extrabold text-blue-400 text-xs">
+                          {row.total500}
+                        </span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          1,000 L
+                        </span>
+                        <span className="font-mono font-extrabold text-indigo-400 text-xs">
+                          {row.total1000}
+                        </span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          2,000 L
+                        </span>
+                        <span className="font-mono font-extrabold text-violet-400 text-xs">
+                          {row.total2000}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* ── Desktop Table View (>= md) ── */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[680px]">
               <thead>
                 <tr className="bg-slate-900/90 border-b border-slate-800/80">
@@ -204,17 +356,19 @@ export const ReportsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-sm">
-                {sorted.length === 0 ? (
+                {filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-14 text-center">
                       <Droplets className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                       <p className="text-sm font-bold text-slate-300">No tank orders found</p>
-                      <p className="text-xs text-slate-500 mt-1">No delivery orders logged for {range.label}</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {search ? `No vendors match "${search}"` : `No delivery orders logged for ${range.label}`}
+                      </p>
                     </td>
                   </tr>
                 ) : (
-                  sorted.map((row, idx) => {
-                    const hasOrders = row.totalOrders > 0;
+                  paginatedRows.map((row, idx) => {
+                    const globalRank = (currentPage - 1) * pageSize + idx + 1;
                     return (
                       <tr
                         key={row.sellerId}
@@ -225,16 +379,16 @@ export const ReportsPage: React.FC = () => {
                         <td className="py-4 px-5">
                           <span
                             className={`text-xs font-extrabold ${
-                              idx === 0
+                              globalRank === 1
                                 ? "text-amber-400"
-                                : idx === 1
+                                : globalRank === 2
                                 ? "text-slate-300"
-                                : idx === 2
+                                : globalRank === 3
                                 ? "text-amber-600"
                                 : "text-slate-600"
                             }`}
                           >
-                            #{idx + 1}
+                            #{globalRank}
                           </span>
                         </td>
 
@@ -243,25 +397,6 @@ export const ReportsPage: React.FC = () => {
                           <div className="font-bold text-white group-hover:text-brand-300 transition-colors text-sm">
                             {row.sellerName}
                           </div>
-                          {hasOrders && (
-                            <div className="flex items-center gap-1.5 mt-1">
-                              {row.total500 > 0 && (
-                                <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-bold">
-                                  {row.total500} × 500L
-                                </span>
-                              )}
-                              {row.total1000 > 0 && (
-                                <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded font-bold">
-                                  {row.total1000} × 1000L
-                                </span>
-                              )}
-                              {row.total2000 > 0 && (
-                                <span className="text-[10px] bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded font-bold">
-                                  {row.total2000} × 2000L
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </td>
 
                         {/* 500 L */}
@@ -326,11 +461,11 @@ export const ReportsPage: React.FC = () => {
                   })
                 )}
               </tbody>
-              {sorted.length > 0 && (
+              {filteredRows.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-900/80 border-t border-slate-800 text-xs font-bold text-slate-300">
                     <td className="py-3.5 px-5 text-slate-400 font-semibold" colSpan={2}>
-                      Total Summary ({sorted.length} sellers)
+                      Total Summary ({filteredRows.length} sellers)
                     </td>
                     <td className="py-3.5 px-5 text-right text-blue-400 font-extrabold">{totals.t500}</td>
                     <td className="py-3.5 px-5 text-right text-indigo-400 font-extrabold">{totals.t1000}</td>
@@ -342,6 +477,97 @@ export const ReportsPage: React.FC = () => {
               )}
             </table>
           </div>
+
+          {/* Pagination Controls Bar */}
+          {filteredRows.length > 0 && (
+            <div className="p-4 border-t border-slate-800/80 bg-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+              {/* Summary text */}
+              <div className="text-xs text-slate-400">
+                Showing <span className="font-bold text-white">{showingStart}</span> to{" "}
+                <span className="font-bold text-white">{showingEnd}</span> of{" "}
+                <span className="font-bold text-brand-400">{filteredRows.length}</span> vendors
+              </div>
+
+              {/* Per page selector */}
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span>Per page:</span>
+                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+                  {[10, 20, 50].map((limitOption) => (
+                    <button
+                      key={limitOption}
+                      onClick={() => setPageSize(limitOption)}
+                      className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
+                        pageSize === limitOption
+                          ? "bg-brand-600 text-white"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {limitOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {getPageNumbers().map((p, idx) =>
+                    typeof p === "number" ? (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-8 h-8 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                          currentPage === p
+                            ? "bg-brand-600 text-white shadow-glow-sm"
+                            : "text-slate-400 hover:text-white hover:bg-slate-800"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ) : (
+                      <span key={idx} className="px-1 text-slate-600 text-xs">
+                        {p}
+                      </span>
+                    )
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

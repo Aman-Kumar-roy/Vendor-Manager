@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { sellerApi } from "../seller/api";
+import { sellerApi, PaginationMeta } from "../seller/api";
 import { Seller, SellerSummary, CreateSellerDto } from "../seller/types";
 import { StatCard } from "../../components/common/StatCard";
 import { SellerTable } from "../seller/components/SellerTable";
@@ -29,8 +29,18 @@ export const DashboardPage: React.FC = () => {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
 
@@ -45,35 +55,43 @@ export const DashboardPage: React.FC = () => {
     message: "",
   });
 
-  const loadData = async () => {
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Server-side paginated data fetch
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await sellerApi.getSellers();
+      const res = await sellerApi.getSellers({
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch.trim() || undefined,
+      });
       if (res.success && res.data) {
-        const rawData = res.data as any;
-        const sellersList = Array.isArray(rawData) ? rawData : (rawData.sellers || []);
-        const summaryData = Array.isArray(rawData)
-          ? {
-              totalSellers: sellersList.length,
-              totalDeliveries: sellersList.reduce((acc: number, s: any) => acc + (s.totalDeliveries || 0), 0),
-              totalPaid: sellersList.reduce((acc: number, s: any) => acc + (s.totalPaid || 0), 0),
-              totalDues: sellersList.reduce((acc: number, s: any) => acc + (s.totalDues || 0), 0),
-            }
-          : (rawData.summary || { totalSellers: 0, totalDeliveries: 0, totalPaid: 0, totalDues: 0 });
-
-        setSellers(sellersList);
-        setSummary(summaryData);
+        setSellers(res.data.sellers || []);
+        if (res.data.summary) {
+          setSummary(res.data.summary);
+        }
+        if (res.data.pagination) {
+          setPaginationMeta(res.data.pagination);
+        }
       }
     } catch (e) {
       console.error("Dashboard error loading data", e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const handleCreateSeller = async (dto: CreateSellerDto) => {
     const res = await sellerApi.createSeller(dto);
@@ -112,33 +130,12 @@ export const DashboardPage: React.FC = () => {
   };
 
   const fmt = (v: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })
+    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
       .format(v).replace("₹", "₹ ");
 
-  const filteredSellers = useMemo(() => {
-    if (!search.trim()) return sellers;
-    const q = search.toLowerCase().trim();
-    return sellers.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.phone && s.phone.includes(q)) ||
-        (s.email && s.email.toLowerCase().includes(q)) ||
-        (s.gstNumber && s.gstNumber.toLowerCase().includes(q))
-    );
-  }, [sellers, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredSellers.length / pageSize));
-  const paginatedSellers = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredSellers.slice(startIndex, startIndex + pageSize);
-  }, [filteredSellers, currentPage, pageSize]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredSellers, pageSize]);
-
-  const showingStart = filteredSellers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const showingEnd = Math.min(filteredSellers.length, currentPage * pageSize);
+  const totalPages = paginationMeta.totalPages || 1;
+  const showingStart = paginationMeta.total === 0 ? 0 : (paginationMeta.page - 1) * paginationMeta.limit + 1;
+  const showingEnd = Math.min(paginationMeta.total, paginationMeta.page * paginationMeta.limit);
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
@@ -428,7 +425,7 @@ export const DashboardPage: React.FC = () => {
         ) : (
           <>
             <SellerTable
-              sellers={paginatedSellers}
+              sellers={sellers}
               onDeleteSeller={handleDeleteSeller}
               onEditSeller={(seller) => setEditingSeller(seller)}
             />
@@ -439,7 +436,7 @@ export const DashboardPage: React.FC = () => {
               <div className="text-xs text-slate-400">
                 Showing <span className="font-bold text-white">{showingStart}</span> to{" "}
                 <span className="font-bold text-white">{showingEnd}</span> of{" "}
-                <span className="font-bold text-brand-400">{filteredSellers.length}</span> sellers
+                <span className="font-bold text-brand-400">{paginationMeta.total}</span> sellers
               </div>
 
               {/* Per page selector */}

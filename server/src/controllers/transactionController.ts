@@ -63,10 +63,41 @@ export class TransactionController {
 
       const transactions = await query;
 
+      // Extract delivery IDs and payment parentIds to populate linkages
+      const deliveryIds = transactions
+        .filter((tx: any) => tx.type === 'DELIVERY')
+        .map((tx: any) => tx._id);
+      const parentIds = transactions
+        .filter((tx: any) => tx.type === 'PAYMENT' && tx.parentId)
+        .map((tx: any) => tx.parentId);
+
+      const [childPayments, parentDeliveries] = await Promise.all([
+        deliveryIds.length > 0
+          ? TransactionModel.find({ parentId: { $in: deliveryIds }, type: 'PAYMENT' }).lean()
+          : Promise.resolve([]),
+        parentIds.length > 0
+          ? TransactionModel.find({ _id: { $in: parentIds }, type: 'DELIVERY' }).lean()
+          : Promise.resolve([]),
+      ]);
+
+      const paymentsByParent = new Map<string, any[]>();
+      for (const p of childPayments) {
+        if (!p.parentId) continue;
+        const pid = p.parentId.toString();
+        if (!paymentsByParent.has(pid)) paymentsByParent.set(pid, []);
+        paymentsByParent.get(pid)!.push(p);
+      }
+
+      const parentDeliveryMap = new Map<string, any>();
+      for (const d of parentDeliveries) {
+        parentDeliveryMap.set(d._id.toString(), d);
+      }
+
       const formatted = transactions.map((tx: any) => {
+        const txId = tx._id.toString();
         const sellerObj = tx.sellerId && typeof tx.sellerId === 'object' ? tx.sellerId : null;
-        return {
-          id: tx._id.toString(),
+        const baseTx: any = {
+          id: txId,
           sellerId: sellerObj ? sellerObj._id.toString() : (tx.sellerId ? tx.sellerId.toString() : ''),
           sellerName: sellerObj ? sellerObj.name : 'Vendor Account',
           sellerEmail: sellerObj ? sellerObj.email || null : null,
@@ -75,7 +106,7 @@ export class TransactionController {
           sellerGstNumber: sellerObj ? sellerObj.gstNumber || null : null,
           parentId: tx.parentId ? tx.parentId.toString() : null,
           type: tx.type,
-          amount: tx.amount,
+          amount: Math.round(tx.amount * 100) / 100,
           date: tx.date,
           note: tx.note || null,
           tank500: tx.tank500 || 0,
@@ -84,6 +115,47 @@ export class TransactionController {
           paymentMode: tx.paymentMode || null,
           createdAt: tx.createdAt,
         };
+
+        if (tx.type === 'DELIVERY') {
+          const rawLinked = paymentsByParent.get(txId) || [];
+          const linkedPayments = rawLinked.map((p: any) => ({
+            id: p._id.toString(),
+            sellerId: p.sellerId.toString(),
+            parentId: txId,
+            type: p.type,
+            amount: Math.round(p.amount * 100) / 100,
+            date: p.date,
+            note: p.note || null,
+            paymentMode: p.paymentMode || null,
+            createdAt: p.createdAt,
+          }));
+
+          const rawPaid = linkedPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
+          const paidAmount = Math.round(rawPaid * 100) / 100;
+          const remainingDue = Math.max(0, Math.round((baseTx.amount - paidAmount) * 100) / 100);
+
+          baseTx.paidAmount = paidAmount;
+          baseTx.remainingDue = remainingDue;
+          baseTx.linkedPayments = linkedPayments;
+        } else if (tx.type === 'PAYMENT') {
+          if (tx.parentId) {
+            const parent = parentDeliveryMap.get(tx.parentId.toString());
+            if (parent) {
+              baseTx.parentDelivery = {
+                id: parent._id.toString(),
+                date: parent.date,
+                amount: Math.round(parent.amount * 100) / 100,
+                note: parent.note || null,
+              };
+            } else {
+              baseTx.parentDelivery = null;
+            }
+          } else {
+            baseTx.parentDelivery = null;
+          }
+        }
+
+        return baseTx;
       });
 
       const totalPages = isPaginated ? Math.ceil(totalCount / limitNum) || 1 : 1;
@@ -128,11 +200,12 @@ export class TransactionController {
         return;
       }
 
-      const parsedAmount = Number(amount);
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      const rawAmount = Number(amount);
+      if (isNaN(rawAmount) || rawAmount <= 0) {
         res.status(400).json({ success: false, error: 'Amount must be a positive number.' });
         return;
       }
+      const parsedAmount = Math.round(rawAmount * 100) / 100;
 
       const transaction = await TransactionModel.create({
         sellerId: new mongoose.Types.ObjectId(sellerId),
@@ -187,12 +260,12 @@ export class TransactionController {
       }
 
       if (amount !== undefined) {
-        const parsedAmount = Number(amount);
-        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        const rawAmount = Number(amount);
+        if (isNaN(rawAmount) || rawAmount <= 0) {
           res.status(400).json({ success: false, error: 'Amount must be a positive number.' });
           return;
         }
-        transaction.amount = parsedAmount;
+        transaction.amount = Math.round(rawAmount * 100) / 100;
       }
 
       if (date !== undefined) transaction.date = new Date(date);

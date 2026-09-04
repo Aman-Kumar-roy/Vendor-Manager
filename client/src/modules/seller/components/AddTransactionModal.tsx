@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Modal } from '../../../components/common/Modal';
 import { CreateTransactionDto, TransactionType, Transaction, PaymentMode } from '../types';
-import { PlusCircle, IndianRupee, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Link2, CreditCard } from 'lucide-react';
+import {
+  PlusCircle, IndianRupee, Calendar, FileText, ArrowUpRight, ArrowDownLeft,
+  Link2, CreditCard, ChevronDown, Check,
+} from 'lucide-react';
 import { CustomDatePicker } from '../../../components/ui/CustomDatePicker';
 
 interface AddTransactionModalProps {
@@ -10,6 +13,8 @@ interface AddTransactionModalProps {
   sellerId: string;
   sellerName: string;
   deliveries?: Transaction[];
+  initialDeliveryId?: string;
+  initialType?: TransactionType;
   onSubmit: (data: CreateTransactionDto) => Promise<void>;
 }
 
@@ -19,10 +24,15 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   sellerId,
   sellerName,
   deliveries = [],
+  initialDeliveryId,
+  initialType,
   onSubmit,
 }) => {
-  const [type, setType] = useState<TransactionType>('DELIVERY');
-  const [parentId, setParentId] = useState<string>('');
+  const [type, setType] = useState<TransactionType>(initialType || (initialDeliveryId ? 'PAYMENT' : 'DELIVERY'));
+  const [parentId, setParentId] = useState<string>(initialDeliveryId || '');
+  const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
+  const linkDropdownRef = useRef<HTMLDivElement>(null);
+
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
@@ -39,8 +49,49 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (isOpen) {
+      if (initialDeliveryId) {
+        setType('PAYMENT');
+        setParentId(initialDeliveryId);
+        const targetOrder = deliveries.find((d) => d.id === initialDeliveryId);
+        if (targetOrder) {
+          const due = targetOrder.remainingDue !== undefined ? targetOrder.remainingDue : targetOrder.amount;
+          if (due > 0) {
+            setAmount(due.toFixed(2));
+          }
+        }
+      } else if (initialType) {
+        setType(initialType);
+        if (initialType === 'DELIVERY') {
+          setParentId('');
+        }
+      }
+    } else {
+      setIsLinkDropdownOpen(false);
+      setAmountError(null);
+      setDateError(null);
+      setError(null);
+    }
+  }, [isOpen, initialDeliveryId, initialType, deliveries]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (linkDropdownRef.current && !linkDropdownRef.current.contains(e.target as Node)) {
+        setIsLinkDropdownOpen(false);
+      }
+    };
+    if (isLinkDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isLinkDropdownOpen]);
+
   // Filter only DELIVERY transactions for linking payments
   const deliveryOrders = deliveries.filter((t) => String(t.type).toUpperCase() === 'DELIVERY');
+  const selectedDelivery = deliveryOrders.find((d) => d.id === parentId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,7 +185,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         </div>
       }
     >
-      <form id="add-transaction-form" onSubmit={handleSubmit} noValidate className="space-y-4">
+      <form id="add-transaction-form" onSubmit={handleSubmit} noValidate className="space-y-4 pb-16 sm:pb-6">
         {error && (
           <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-300 text-xs font-medium">
             {error}
@@ -257,29 +308,112 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
         {/* Conditional Delivery Link for PAYMENT */}
         {type === 'PAYMENT' && deliveryOrders.length > 0 && (
-          <div className="animate-fade-in">
+          <div className={`animate-fade-in ${isLinkDropdownOpen ? 'relative z-40' : 'relative z-10'}`} ref={linkDropdownRef}>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
               Link Payment to Specific Delivery Order (Optional)
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Link2 className="w-4 h-4" />
-              </div>
-              <select
-                value={parentId}
-                onChange={(e) => setParentId(e.target.value)}
-                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+            <div className={`relative ${isLinkDropdownOpen ? 'z-40' : 'z-10'}`}>
+              {/* Custom Trigger Button matching project style */}
+              <div
+                onClick={() => setIsLinkDropdownOpen((prev) => !prev)}
+                className={`w-full bg-slate-900 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none transition-all cursor-pointer flex items-center justify-between select-none ${
+                  isLinkDropdownOpen
+                    ? 'border-brand-500 shadow-[0_0_15px_rgba(14,165,233,0.25)]'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
               >
-                <option value="">-- General Account Payment (Unlinked) --</option>
-                {deliveryOrders.map((d) => {
-                  const remaining = d.remainingDue !== undefined ? d.remainingDue : d.amount;
-                  return (
-                    <option key={d.id} value={d.id}>
-                      Delivery ({new Date(d.date).toLocaleDateString('en-US')}) - Total: {formatCurrency(d.amount)} | Remaining: {formatCurrency(remaining)} {d.note ? `[${d.note}]` : ''}
-                    </option>
-                  );
-                })}
-              </select>
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-brand-400">
+                  <Link2 className="w-4 h-4" />
+                </div>
+                <div className="truncate">
+                  {selectedDelivery ? (
+                    <span className="font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                      <span>Delivery ({new Date(selectedDelivery.date).toLocaleDateString('en-IN')})</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-indigo-300 font-mono">{formatCurrency(selectedDelivery.amount)}</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-amber-400 font-mono">
+                        Due: {formatCurrency(selectedDelivery.remainingDue ?? selectedDelivery.amount)}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-medium">
+                      -- General Account Payment (Unlinked) --
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${
+                    isLinkDropdownOpen ? 'rotate-180 text-brand-400' : ''
+                  }`}
+                />
+              </div>
+
+              {/* Custom Dropdown Popover */}
+              {isLinkDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1.5 z-50 w-full bg-slate-900 border border-slate-700 rounded-2xl p-2 shadow-2xl animate-fade-in text-slate-100 max-h-60 overflow-y-auto space-y-1">
+                  {/* General Account Payment Option */}
+                  <div
+                    onClick={() => {
+                      setParentId('');
+                      setIsLinkDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs transition-all text-left cursor-pointer ${
+                      !parentId
+                        ? 'bg-brand-500/15 border border-brand-500/30 text-brand-300 font-bold'
+                        : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-slate-500" />
+                      <span>-- General Account Payment (Unlinked) --</span>
+                    </div>
+                    {!parentId && <Check className="w-4 h-4 text-brand-400 shrink-0" />}
+                  </div>
+
+                  {/* Delivery Orders */}
+                  {deliveryOrders.map((d) => {
+                    const isSelected = parentId === d.id;
+                    const remaining = d.remainingDue !== undefined ? d.remainingDue : d.amount;
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => {
+                          setParentId(d.id);
+                          setIsLinkDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs transition-all text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-brand-500/15 border border-brand-500/30 text-brand-300 font-bold'
+                            : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white">
+                              Delivery #{d.id.slice(-6).toUpperCase()}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              ({new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
+                            <span className="text-indigo-300 font-bold">Total: {formatCurrency(d.amount)}</span>
+                            <span className="text-slate-500">•</span>
+                            <span className={remaining > 0 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                              Remaining: {formatCurrency(remaining)}
+                            </span>
+                            {d.note && (
+                              <span className="text-slate-400 truncate max-w-[140px]">[{d.note}]</span>
+                            )}
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-brand-400 shrink-0 ml-2" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
               Select a delivery order to associate partial payments directly with that delivery.

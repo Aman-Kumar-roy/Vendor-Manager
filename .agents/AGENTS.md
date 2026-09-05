@@ -34,7 +34,7 @@
 ### 3. Workspace Directory Layout & Responsibilities
 - **`server/`**: Express + TypeScript REST API backend (`http://localhost:5000/api/v1`).
 - **`client/`**: React + Vite + Tailwind web dashboard.
-- **`app/`**: Cross-platform mobile app built with **React Native (Expo SDK 50)** + **TypeScript**.
+- **`app/`**: (Independent external repository) Cross-platform mobile app built with **React Native (Expo SDK 50)** + **TypeScript**.
 - **`api-tests/`**: Automated API test suite (`npm run test:api`).
 - **`resume/`**: Master career documents, Markdown, HTML, PDF exports.
 

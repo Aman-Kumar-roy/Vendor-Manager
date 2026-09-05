@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Modal } from '../../../components/common/Modal';
-import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { useAuth } from '../../../context/AuthContext';
 import { Transaction } from '../types';
 import { Badge } from '../../../components/common/Badge';
 import {
@@ -37,12 +37,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   onDeleteTransaction,
   onPrintReceipt,
 }) => {
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    isOpen: boolean;
-    txId: string;
-    label: string;
-    isMainOrder?: boolean;
-  }>({ isOpen: false, txId: '', label: '', isMainOrder: false });
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   if (!delivery) return null;
 
@@ -130,21 +126,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteConfirm({
-                      isOpen: true,
-                      txId: delivery.id,
-                      label: `Delivery Order (${formatCurrency(delivery.amount)})`,
-                      isMainOrder: true,
-                    });
-                  }}
-                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
-                  title="Delete Delivery Order"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onDeleteTransaction(delivery.id);
+                    }}
+                    className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                    title="Delete Delivery Order"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -331,21 +325,16 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                           <Printer className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleteConfirm({
-                            isOpen: true,
-                            txId: p.id,
-                            label: `Payment of ${formatCurrency(p.amount)}`,
-                            isMainOrder: false,
-                          });
-                        }}
-                        className="p-1.5 sm:p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Delete Payment"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteTransaction(p.id)}
+                          className="p-1.5 sm:p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="Delete Payment"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -379,26 +368,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           </div>
         </div>
       </Modal>
-
-      {/* In-App Custom Delete Confirmation Modal */}
-      <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
-        title="Confirm Delete"
-        message={`Are you sure you want to permanently delete "${deleteConfirm.label}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={() => {
-          const idToDelete = deleteConfirm.txId;
-          const isMain = deleteConfirm.isMainOrder;
-          setDeleteConfirm({ isOpen: false, txId: '', label: '', isMainOrder: false });
-          onDeleteTransaction(idToDelete);
-          if (isMain) {
-            onClose();
-          }
-        }}
-        onCancel={() => setDeleteConfirm({ isOpen: false, txId: '', label: '', isMainOrder: false })}
-      />
     </>
   );
 };

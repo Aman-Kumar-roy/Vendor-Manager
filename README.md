@@ -1,6 +1,6 @@
 # Vasudha Polymer — Vendor & Transaction Management System (VTMS)
 
-> **Enterprise Full-Stack Monorepo**: Unified **MongoDB + Express REST API (`server/`)** serving both the **React + Vite Admin Dashboard (`client/`)** and the **React Native / Expo Mobile App (`vtms-app/`)**.
+> **Enterprise Full-Stack Monorepo**: Unified **MongoDB + Express REST API (`server/`)** serving both the **React + Vite Admin Dashboard (`client/`)** and the **React Native / Expo Mobile App (`app/`)**.
 
 ---
 
@@ -24,18 +24,26 @@ The system is built on a single, shared backend server that acts as the single s
                          ▼                                         ▼
             ┌─────────────────────────┐               ┌─────────────────────────┐
             │   React Web Dashboard   │               │   React Native App      │
-            │    (client/ — Vite)     │               │   (vtms-app/ — Expo)    │
+            │    (client/ — Vite)     │               │     (app/ — Expo)       │
             └─────────────────────────┘               └─────────────────────────┘
 ```
 
-### Key Principles
-1. **Unified Server**: The Web dashboard and Mobile app communicate with the exact same Express REST API (`http://localhost:5000/api/v1`).
-2. **Dynamic Financial Totals**: `totalDeliveries`, `totalPaid`, and `totalDues` are calculated dynamically on the server — never hardcoded or stored statically in database documents.
-3. **Strict Tank Capacities**: In compliance with company manufacturing specifications, only the following tank sizes are permitted:
+### Core Architecture & Business Rules
+
+1. **Unified Server & Single Source of Truth**: The Web dashboard and Mobile app communicate with the exact same Express REST API (`http://localhost:5000/api/v1`).
+2. **Dynamic Financial Calculations**: `totalDeliveries`, `totalPaid`, and `totalDues` are calculated dynamically in server controllers from MongoDB transactions — never stored statically in documents.
+3. **Selling Units Domain Model**: The application represents selling polymer water storage tanks to vendors/sellers. All transaction interfaces strictly reflect products and unit counts.
+4. **Strict Tank Capacities**: Strictly limited to standard tank capacities:
    - **`500L`** (`tank500`)
-   - **`1000L`** (`tank1000`)
-   - **`2000L`** (`tank2000`)
-   - *(Tank sizes such as 300L, 750L, 1500L, etc. are strictly disallowed)*.
+   - **`1,000L`** (`tank1000`)
+   - **`2,000L`** (`tank2000`)
+   *(Tank sizes such as 300L, 750L, 1500L, etc. are strictly disallowed)*.
+5. **Server-Generated Receipts**: Both web and mobile applications share the identical server-generated receipt system (`receipt: ServerReceipt` attached to transaction creation responses and `GET /api/v1/transactions/:id/receipt`).
+6. **In-Context Transaction Flow**: On both platforms, transaction creation opens dedicated modals (`AddTransactionModal.tsx`), shows a floating success toast (`"Transaction created successfully."`), and retains user context without automatic redirect to unrelated screens. Users are presented with in-place success confirmation and direct actions: *View Official Receipt*, *+ Record Another*, or *Done*.
+7. **Seller Toggle Parity**: Both web and mobile feature the "Require additional fields" switch toggle and backend enforcement:
+   - **ON (Default)**: Validates that **Vendor Name**, **Email Address** (valid email format), and **GSTIN** (15 alphanumeric characters) are strictly mandatory before submission. Phone and address are optional.
+   - **OFF**: Only **Vendor Name** is mandatory. Email (if provided, validated for format), GSTIN, Phone, and Address are optional.
+   - **Feedback**: Displays floating success toast (`"Seller created successfully."`) and immediately refreshes the active vendor list in-place.
 
 ---
 
@@ -46,109 +54,63 @@ vasudha-polymer/
 ├── .agents/                 # AI Agent rule definitions
 │   └── AGENTS.md            # Mandatory AI Agent instructions
 ├── AGENTS.md                # Master workspace AI rules
-├── README.md                # System documentation
+├── README.md                # Master system documentation
 ├── .env                     # Project-wide environment configuration
-├── .env.example             # Environment template
 ├── package.json             # Root npm workspaces configuration
-├── package-lock.json        # Unified root dependency lockfile
 ├── server/                  # Express + TypeScript + MongoDB Backend
 │   ├── src/
 │   │   ├── app.ts           # Express app, CORS & route configuration
 │   │   ├── index.ts         # Server bootstrap & MongoDB connection
-│   │   ├── config/          # Environment & database connection pool
-│   │   ├── controllers/     # Modular controller handlers (Auth, Seller, Transaction, Report)
+│   │   ├── controllers/     # Controller handlers (Auth, Seller, Transaction, Report)
 │   │   ├── middleware/      # JWT authentication & error handling
 │   │   ├── models/          # Mongoose Schemas (User, Seller, Transaction)
 │   │   ├── routes/          # REST API route definitions
-│   │   └── scripts/         # Database seed & automated API test suite
-│   ├── package.json
-│   └── tsconfig.json
-└── client/                  # React + Vite + Tailwind Admin Dashboard
+│   │   └── scripts/         # Automated API test suite (`npm run test:api`)
+│   └── package.json
+├── client/                  # React + Vite + Tailwind Web Admin Dashboard
+│   ├── src/
+│   │   ├── components/      # Modals, custom date pickers, table grids
+│   │   ├── context/         # AuthContext & ThemeContext
+│   │   ├── modules/
+│   │   │   ├── auth/        # Login page & authentication
+│   │   │   ├── seller/      # Seller tables, modals, and transaction receipts
+│   │   │   ├── reports/     # Monthly tank order analytics & ranking
+│   │   │   └── receipts/    # Transaction receipt generator & PDF printer
+│   │   └── services/        # Axios API client
+│   └── README.md            # Web client documentation
+└── app/                     # React Native (Expo SDK 50) Cross-Platform Mobile App
     ├── src/
-    │   ├── components/      # Common UI, Layout, Custom Date/Month Pickers
-    │   ├── context/         # AuthContext & ThemeContext (Dark/Light)
-    │   ├── modules/
-    │   │   ├── auth/        # Login page & authentication
-    │   │   ├── seller/      # Vendor list, detail ledger & transaction modals
-    │   │   ├── reports/     # Monthly tank order analytics & ranking
-    │   │   └── receipts/    # Transaction receipt generator & PDF printer
-    │   └── services/        # Axios API client with automatic token attachment
-    ├── package.json
-    └── vite.config.ts
+    │   ├── api/             # Typed API services with dynamic host IP resolution
+    │   ├── components/      # NavbarHeader, TankSelector, ReceiptModal, DrawerSidebar
+    │   ├── context/         # AuthContext & ThemeContext
+    │   ├── screens/         # Dashboard, Sellers, DeliveryForm, PaymentForm, etc.
+    │   └── types/           # Core TypeScript data contracts
+    ├── README.md            # Mobile app documentation
+    ├── SKILLS.md            # Mobile agent skills & conventions
+    └── API_DOCUMENTATION.md # Complete REST API specification
 ```
 
 ---
 
-## ⚙️ Environment Configuration (`.env`)
+## 🚀 Running the Project
 
-Configure a single `.env` file in the project root:
-
-```env
-# MongoDB Atlas or Local URI
-MONGODB_URI="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/vasudha_seller?retryWrites=true&w=majority"
-
-# Express Server Configuration
-PORT=5000
-JWT_SECRET="vasudha_polymer_secret_key_2026"
-JWT_EXPIRES_IN="24h"
-
-# Client Configuration
-VITE_API_URL="http://localhost:5000/api/v1"
-
-# Company Receipt & Invoice Configuration
-VITE_COMPANY_NAME="Vasudha Polymer"
-VITE_COMPANY_GST="07AAAAA0000A1Z5"
-VITE_COMPANY_PHONE="+91 98765 43210"
-VITE_COMPANY_ADDRESS="Plot 42, Industrial Zone, New Delhi - 110020"
-```
-
----
-
-## 🚀 Quick Start & Scripts
-
-### 1. Initial Setup
+### 1. Start Server & Web Dashboard (Root)
 ```bash
-# Setup environment file, install dependencies & seed database
-npm run setup
-```
-
-### 2. Development Mode
-```bash
-# Starts both Express backend (:5000) and React client (:3000) concurrently
 npm run dev
 ```
+- Backend API runs on: `http://localhost:5000/api/v1`
+- Web Dashboard runs on: `http://localhost:5173`
 
-### 3. Production Build
+### 2. Run API Automated Tests
 ```bash
-# Compiles both client and server packages with strict TypeScript checks
-npm run build
-```
-
-### 4. Automated API Verification Test Suite
-```bash
-# Runs comprehensive automated API tests against all server endpoints
 npm run test:api
 ```
+*(Runs comprehensive 18-step automated verification suite against MongoDB)*
 
-### 5. Seed Admin & Demo Data
+### 3. Start Mobile App
 ```bash
-npm run seed
+cd app
+npx expo start
 ```
-- **Default Admin Account**: `admin@webkul.com` / `admin123`
-
----
-
-## 📡 REST API Reference (`/api/v1`)
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/health` | Public | Server healthcheck |
-| `POST` | `/api/v1/auth/login` | Public | Admin login & JWT token generation |
-| `GET` | `/api/v1/auth/me` | Bearer | Current authenticated user profile |
-| `GET` | `/api/v1/sellers` | Bearer | All sellers with aggregated summary metrics |
-| `POST` | `/api/v1/sellers` | Bearer | Create new vendor |
-| `GET` | `/api/v1/sellers/:id` | Bearer | Seller detail with ledger of transactions |
-| `GET` | `/api/v1/transactions` | Bearer | All delivery & payment transactions |
-| `POST` | `/api/v1/transactions` | Bearer | Log tank delivery (`DELIVERY`) or payment (`PAYMENT`) |
-| `GET` | `/api/v1/reports/summary` | Bearer | High-level metrics, tank totals & top vendor leaderboard |
-| `GET` | `/api/v1/reports/tank-summary` | Bearer | Monthly tank order analytics (`?month=YYYY-MM`) per vendor |
+- Web preview mode: `npx expo start --web`
+- Type-check mobile code: `npx tsc --noEmit`

@@ -47,10 +47,15 @@ ehthumbs.db
 coverage/
 .nyc_output/
 
-# Mobile / Expo builds
+# Mobile / Expo builds and caches
 .expo/
+*/.expo/
 .expo-shared/
+*/.expo-shared/
 web-build/
+*/web-build/
+.metro-health-check*
+*/.metro-health-check*
 
 # Temporary and Cache files
 .cache/
@@ -58,3 +63,7 @@ web-build/
 .turbo/
 .tmp/
 tmp/
+
+# Separate Mobile App Repository (Maintained in independent Git repo)
+/app/
+app/

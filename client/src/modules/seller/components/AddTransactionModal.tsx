@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { CustomDatePicker } from '../../../components/ui/CustomDatePicker';
 
+const EMPTY_DELIVERIES: Transaction[] = [];
+
 interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -23,7 +25,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   onClose,
   sellerId,
   sellerName,
-  deliveries = [],
+  deliveries = EMPTY_DELIVERIES,
   initialDeliveryId,
   initialType,
   onSubmit,
@@ -61,19 +63,42 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             setAmount(due.toFixed(2));
           }
         }
-      } else if (initialType) {
-        setType(initialType);
-        if (initialType === 'DELIVERY') {
-          setParentId('');
-        }
+      } else {
+        setType(initialType || 'DELIVERY');
+        setParentId('');
+        setAmount('');
       }
+      setDate(new Date().toISOString().slice(0, 10));
+      setNote('');
+      setPaymentMode('CASH');
+      setVehicleNumber('');
+      setTank500('');
+      setTank1000('');
+      setTank2000('');
+      setAmountError(null);
+      setDateError(null);
+      setError(null);
     } else {
       setIsLinkDropdownOpen(false);
       setAmountError(null);
       setDateError(null);
       setError(null);
     }
-  }, [isOpen, initialDeliveryId, initialType, deliveries]);
+  }, [isOpen]);
+
+  const handleSelectType = (newType: TransactionType) => {
+    setType(newType);
+    setAmountError(null);
+    setDateError(null);
+    setError(null);
+    if (newType === 'DELIVERY') {
+      setParentId('');
+    } else {
+      setTank500('');
+      setTank1000('');
+      setTank2000('');
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -200,7 +225,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => { setType('DELIVERY'); setParentId(''); }}
+              onClick={() => handleSelectType('DELIVERY')}
               className={`flex items-center justify-center space-x-2 p-3.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${type === 'DELIVERY'
                 ? 'bg-indigo-500/15 border-indigo-500 text-indigo-700 dark:text-indigo-300 shadow-sm ring-1 ring-indigo-500/30'
                 : 'bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
@@ -212,7 +237,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
             <button
               type="button"
-              onClick={() => setType('PAYMENT')}
+              onClick={() => handleSelectType('PAYMENT')}
               className={`flex items-center justify-center space-x-2 p-3.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${type === 'PAYMENT'
                 ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-sm ring-1 ring-emerald-500/30'
                 : 'bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'

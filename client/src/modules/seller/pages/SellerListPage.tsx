@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { EditSellerModal } from '../components/EditSellerModal';
+import { Toast } from '../../../components/common/Toast';
 
 export const SellerListPage: React.FC = () => {
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -50,6 +51,8 @@ export const SellerListPage: React.FC = () => {
     isOpen: false,
     message: '',
   });
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -92,6 +95,7 @@ export const SellerListPage: React.FC = () => {
   const handleAddSeller = async (dto: CreateSellerDto) => {
     const res = await sellerApi.createSeller(dto);
     if (res.success) {
+      setToastMsg('Seller created successfully.');
       await fetchSellers();
     }
   };
@@ -402,6 +406,15 @@ export const SellerListPage: React.FC = () => {
         onConfirm={() => setAlertDialog({ isOpen: false, message: '' })}
         onCancel={() => setAlertDialog({ isOpen: false, message: '' })}
       />
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <Toast
+          message={toastMsg}
+          type="success"
+          onClose={() => setToastMsg(null)}
+        />
+      )}
     </div>
     
   );

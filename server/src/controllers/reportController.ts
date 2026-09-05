@@ -6,6 +6,10 @@ export class ReportController {
   // GET /api/v1/reports/summary
   public static async getSummaryReport(req: Request, res: Response): Promise<void> {
     try {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
       const [totalsAgg, topDeliveriesAgg, totalSellers] = await Promise.all([
         TransactionModel.aggregate([
           {
@@ -31,18 +35,20 @@ export class ReportController {
         ]),
         TransactionModel.aggregate([
           {
+            $match: {
+              type: 'DELIVERY',
+              date: { $gte: startOfMonth, $lte: endOfMonth },
+            },
+          },
+          {
             $group: {
               _id: '$sellerId',
-              totalDeliveries: {
-                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$amount', 0] },
-              },
-              totalPaid: {
-                $sum: { $cond: [{ $eq: ['$type', 'PAYMENT'] }, '$amount', 0] },
-              },
+              totalDeliveries: { $sum: '$amount' },
+              totalTanks: { $sum: { $add: ['$tank500', '$tank1000', '$tank2000'] } },
             },
           },
           { $sort: { totalDeliveries: -1 } },
-          { $limit: 3 },
+          { $limit: 5 },
           {
             $lookup: {
               from: 'sellers',
@@ -55,15 +61,51 @@ export class ReportController {
           {
             $project: {
               _id: 0,
+              sellerId: { $toString: '$_id' },
               name: { $ifNull: ['$seller.name', 'Vendor Account'] },
               totalDeliveries: 1,
-              totalPaid: 1,
-              totalDues: { $subtract: ['$totalDeliveries', '$totalPaid'] },
+              totalTanks: 1,
             },
           },
         ]),
         SellerModel.countDocuments(),
       ]);
+
+      let topDeliveries = topDeliveriesAgg;
+      if (topDeliveries.length === 0) {
+        topDeliveries = await TransactionModel.aggregate([
+          {
+            $match: { type: 'DELIVERY' },
+          },
+          {
+            $group: {
+              _id: '$sellerId',
+              totalDeliveries: { $sum: '$amount' },
+              totalTanks: { $sum: { $add: ['$tank500', '$tank1000', '$tank2000'] } },
+            },
+          },
+          { $sort: { totalDeliveries: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: 'sellers',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'seller',
+            },
+          },
+          { $unwind: { path: '$seller', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 0,
+              sellerId: { $toString: '$_id' },
+              name: { $ifNull: ['$seller.name', 'Vendor Account'] },
+              totalDeliveries: 1,
+              totalTanks: 1,
+            },
+          },
+        ]);
+      }
 
       const totalBilledSalesRounded = Math.round((totalsAgg[0]?.totalBilledSales || 0) * 100) / 100;
       const totalClearedPaymentsRounded = Math.round((totalsAgg[0]?.totalClearedPayments || 0) * 100) / 100;
@@ -72,11 +114,14 @@ export class ReportController {
         ? (totalClearedPaymentsRounded / totalBilledSalesRounded) * 100
         : 100;
 
-      const topSellers = topDeliveriesAgg.map((s: any) => ({
+      const topSellers = topDeliveries.map((s: any, idx: number) => ({
+        rank: idx + 1,
+        sellerId: s.sellerId,
         name: s.name,
-        totalDeliveries: Math.round(s.totalDeliveries * 100) / 100,
-        totalPaid: Math.round(s.totalPaid * 100) / 100,
-        totalDues: Math.round((s.totalDues || 0) * 100) / 100,
+        totalDeliveries: Math.round((s.totalDeliveries || 0) * 100) / 100,
+        totalPaid: Math.round((s.totalPaid || 0) * 100) / 100,
+        totalDues: Math.round(((s.totalDeliveries || 0) - (s.totalPaid || 0)) * 100) / 100,
+        totalTanks: s.totalTanks || 0,
       }));
 
       res.status(200).json({

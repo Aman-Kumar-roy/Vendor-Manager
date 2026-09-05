@@ -215,7 +215,22 @@ export class SellerController {
         const txId = tx._id.toString();
         const baseTx: any = {
           id: txId,
-          sellerId: tx.sellerId.toString(),
+          _id: txId,
+          sellerId: seller._id.toString(),
+          sellerName: seller.name,
+          sellerPhone: seller.phone || null,
+          sellerEmail: seller.email || null,
+          sellerAddress: seller.address || null,
+          sellerGstNumber: seller.gstNumber || null,
+          seller: {
+            id: seller._id.toString(),
+            _id: seller._id.toString(),
+            name: seller.name,
+            phone: seller.phone || null,
+            email: seller.email || null,
+            address: seller.address || null,
+            gstNumber: seller.gstNumber || null,
+          },
           parentId: tx.parentId ? tx.parentId.toString() : null,
           type: tx.type,
           amount: Math.round(tx.amount * 100) / 100,
@@ -320,42 +335,110 @@ export class SellerController {
   // POST /api/v1/sellers
   public static async createSeller(req: Request, res: Response): Promise<void> {
     try {
-      const { name, email, phone, address, gstNumber } = req.body;
+      const { name, email, phone, address, gstNumber, requireAdditional } = req.body;
 
+      // Validate Seller Name (always mandatory)
       if (!name || typeof name !== 'string' || !name.trim()) {
-        res.status(400).json({ success: false, error: 'Seller name is required.' });
+        res.status(400).json({
+          success: false,
+          error: 'Seller name is required.',
+          message: 'Seller name is required.',
+        });
         return;
       }
 
+      // Determine toggle state: ON (true) by default if omitted, null, or undefined
+      const isToggleOn =
+        requireAdditional === undefined || requireAdditional === null
+          ? true
+          : typeof requireAdditional === 'string'
+          ? requireAdditional.toLowerCase() !== 'false'
+          : Boolean(requireAdditional);
+
+      const trimmedEmail = email && typeof email === 'string' ? email.trim() : '';
+      const trimmedGst = gstNumber && typeof gstNumber === 'string' ? gstNumber.trim().toUpperCase() : '';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (isToggleOn) {
+        // When Toggle is ON: Name, Email, and GST Number are mandatory
+        if (!trimmedEmail) {
+          res.status(400).json({
+            success: false,
+            error: 'Email address is required when additional fields are enabled.',
+            message: 'Email address is required when additional fields are enabled.',
+          });
+          return;
+        }
+
+        if (!emailRegex.test(trimmedEmail)) {
+          res.status(400).json({
+            success: false,
+            error: 'Please enter a valid email address.',
+            message: 'Please enter a valid email address.',
+          });
+          return;
+        }
+
+        if (!trimmedGst) {
+          res.status(400).json({
+            success: false,
+            error: 'GST number is required when additional fields are enabled.',
+            message: 'GST number is required when additional fields are enabled.',
+          });
+          return;
+        }
+      } else {
+        // When Toggle is OFF: Email is optional, but must be valid if provided
+        if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
+          res.status(400).json({
+            success: false,
+            error: 'Please enter a valid email address.',
+            message: 'Please enter a valid email address.',
+          });
+          return;
+        }
+      }
+
+      const trimmedPhone = phone && typeof phone === 'string' ? phone.trim() : null;
+      const trimmedAddress = address && typeof address === 'string' ? address.trim() : null;
+
       const seller = await SellerModel.create({
         name: name.trim(),
-        email: email ? email.trim() : null,
-        phone: phone ? phone.trim() : null,
-        address: address ? address.trim() : null,
-        gstNumber: gstNumber ? gstNumber.trim() : null,
+        email: trimmedEmail || null,
+        phone: trimmedPhone || null,
+        address: trimmedAddress || null,
+        gstNumber: trimmedGst || null,
       });
+
+      const formattedSeller = {
+        id: seller._id.toString(),
+        name: seller.name,
+        email: seller.email || null,
+        phone: seller.phone || null,
+        address: seller.address || null,
+        gstNumber: seller.gstNumber || null,
+        totalDeliveries: 0,
+        totalPaid: 0,
+        totalDues: 0,
+        tank500: 0,
+        tank1000: 0,
+        tank2000: 0,
+        totalTanks: 0,
+        createdAt: seller.createdAt,
+      };
 
       res.status(201).json({
         success: true,
+        message: 'Seller created successfully.',
+        seller: formattedSeller,
         data: {
-          id: seller._id.toString(),
-          name: seller.name,
-          email: seller.email || null,
-          phone: seller.phone || null,
-          address: seller.address || null,
-          gstNumber: seller.gstNumber || null,
-          totalDeliveries: 0,
-          totalPaid: 0,
-          totalDues: 0,
-          tank500: 0,
-          tank1000: 0,
-          tank2000: 0,
-          totalTanks: 0,
-          createdAt: seller.createdAt,
+          ...formattedSeller,
+          seller: formattedSeller,
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error creating seller.' });
+      const errMsg = error.message || 'Error creating seller.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 

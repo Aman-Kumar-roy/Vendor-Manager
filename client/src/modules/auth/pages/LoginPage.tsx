@@ -108,7 +108,7 @@ export const LoginPage: React.FC = () => {
                   autoComplete="username"
                   style={{ colorScheme: 'dark' }}
                   onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
-                  placeholder="admin@webkul.com"
+                  placeholder="admin@company.com"
                   className={`w-full bg-slate-950/80 border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none transition-all ${
                     emailError ? "border-rose-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500" : "border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                   }`}

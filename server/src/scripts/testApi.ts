@@ -176,8 +176,46 @@ async function runApiTests() {
       }
     });
 
-    // 5. Create Seller (if none or test new seller)
-    await test('POST /api/v1/sellers (Create Vendor)', async () => {
+    // 5. Create Seller (Toggle ON by default - Full validation)
+    await test('POST /api/v1/sellers (Toggle ON rejects missing email or GST)', async () => {
+      const res = await fetch(`${BASE_URL}/sellers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          name: 'Missing Fields Vendor',
+          // requireAdditional defaults to true
+        }),
+      });
+      assert(res.status === 400, `Expected status 400 for missing required fields on toggle ON, got ${res.status}`);
+      const body = await res.json() as any;
+      assert(body.success === false, 'Expected success === false');
+      assert(Boolean(body.error || body.message), 'Expected error or message property');
+    });
+
+    await test('POST /api/v1/sellers (Toggle OFF permits creation with Name only)', async () => {
+      const uniqueSuffix = Date.now().toString().slice(-4);
+      const res = await fetch(`${BASE_URL}/sellers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          name: `Minimal Vendor ${uniqueSuffix}`,
+          requireAdditional: false,
+        }),
+      });
+      assert(res.status === 201, `Expected status 201 for toggle OFF with name only, got ${res.status}`);
+      const body = await res.json() as any;
+      assert(body.success === true, 'Expected success === true');
+      assert(body.message === 'Seller created successfully.', 'Expected success message');
+      assert(Boolean(body.seller?.id || body.data?.id), 'Expected seller in response');
+    });
+
+    await test('POST /api/v1/sellers (Create Vendor with Toggle ON & Full Fields)', async () => {
       const uniqueSuffix = Date.now().toString().slice(-4);
       const res = await fetch(`${BASE_URL}/sellers`, {
         method: 'POST',
@@ -191,13 +229,16 @@ async function runApiTests() {
           phone: '+91 99999 11111',
           address: 'Test Industrial Area, Sector 5',
           gstNumber: `07TEST${uniqueSuffix}Z1`,
+          requireAdditional: true,
         }),
       });
       assert(res.status === 201 || res.status === 200, `Expected status 201/200, got ${res.status}`);
       const body = await res.json() as any;
       assert(body.success === true, 'Expected success === true');
-      if (!testSellerId && body.data?.seller?.id) {
-        testSellerId = body.data.seller.id;
+      assert(body.message === 'Seller created successfully.', 'Expected success message');
+      assert(Boolean(body.seller?.id || body.data?.seller?.id || body.data?.id), 'Expected seller in response');
+      if (!testSellerId && (body.seller?.id || body.data?.seller?.id || body.data?.id)) {
+        testSellerId = body.seller?.id || body.data?.seller?.id || body.data?.id;
       }
     });
 
@@ -236,13 +277,26 @@ async function runApiTests() {
             tank500: 5,
             tank1000: 3,
             tank2000: 1,
-            vehicleNumber: 'DL-01-AB-1234',
             note: 'Standard water tank delivery order',
           }),
         });
         assert(res.status === 201 || res.status === 200, `Expected status 201/200, got ${res.status}`);
         const body = await res.json() as any;
         assert(body.success === true, 'Expected success === true');
+        assert(body.message === 'Transaction created successfully.', 'Expected transaction success message');
+        assert(Boolean(body.receipt?.receiptNo || body.data?.receipt?.receiptNo), 'Expected receipt in response');
+        const txId = body.transaction?._id || body.transaction?.id || body.data?.transaction?.id;
+
+        if (txId) {
+          // Verify Receipt Voucher Endpoint
+          const receiptRes = await fetch(`${BASE_URL}/transactions/${txId}/receipt`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+          assert(receiptRes.status === 200, `Expected status 200 for receipt voucher, got ${receiptRes.status}`);
+          const receiptBody = await receiptRes.json() as any;
+          assert(receiptBody.success === true, 'Expected receiptBody.success === true');
+          assert(Boolean(receiptBody.data?.receiptNo), 'Expected receiptNo in voucher data');
+        }
       });
 
       // 8. Post Payment Settlement Transaction
@@ -256,10 +310,10 @@ async function runApiTests() {
           body: JSON.stringify({
             sellerId: testSellerId,
             type: 'PAYMENT',
-            amount: 10000,
+            amount: 5000,
             date: new Date().toISOString().split('T')[0],
             paymentMode: 'UPI',
-            note: 'Advance partial payment via UPI',
+            note: 'Advance installment settlement',
           }),
         });
         assert(res.status === 201 || res.status === 200, `Expected status 201/200, got ${res.status}`);

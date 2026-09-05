@@ -93,17 +93,47 @@ export class TransactionController {
         parentDeliveryMap.set(d._id.toString(), d);
       }
 
+      // Check for any unpopulated seller IDs to query from SellerModel
+      const unpopulatedSellerIds = transactions
+        .filter((tx: any) => !tx.sellerId || typeof tx.sellerId !== 'object' || !tx.sellerId.name)
+        .map((tx: any) => tx.sellerId)
+        .filter(Boolean);
+
+      const fallbackSellerMap = new Map<string, any>();
+      if (unpopulatedSellerIds.length > 0) {
+        const fallbackSellers = await SellerModel.find({ _id: { $in: unpopulatedSellerIds } }).lean();
+        for (const s of fallbackSellers) {
+          fallbackSellerMap.set(s._id.toString(), s);
+        }
+      }
+
       const formatted = transactions.map((tx: any) => {
         const txId = tx._id.toString();
-        const sellerObj = tx.sellerId && typeof tx.sellerId === 'object' ? tx.sellerId : null;
+        let sellerObj = tx.sellerId && typeof tx.sellerId === 'object' && tx.sellerId.name ? tx.sellerId : null;
+        if (!sellerObj && tx.sellerId) {
+          sellerObj = fallbackSellerMap.get(tx.sellerId.toString()) || null;
+        }
+
         const baseTx: any = {
           id: txId,
+          _id: txId,
           sellerId: sellerObj ? sellerObj._id.toString() : (tx.sellerId ? tx.sellerId.toString() : ''),
-          sellerName: sellerObj ? sellerObj.name : 'Vendor Account',
+          sellerName: sellerObj ? sellerObj.name : 'Valued Vendor',
           sellerEmail: sellerObj ? sellerObj.email || null : null,
           sellerPhone: sellerObj ? sellerObj.phone || null : null,
           sellerAddress: sellerObj ? sellerObj.address || null : null,
           sellerGstNumber: sellerObj ? sellerObj.gstNumber || null : null,
+          seller: sellerObj
+            ? {
+                id: sellerObj._id.toString(),
+                _id: sellerObj._id.toString(),
+                name: sellerObj.name,
+                phone: sellerObj.phone || null,
+                email: sellerObj.email || null,
+                address: sellerObj.address || null,
+                gstNumber: sellerObj.gstNumber || null,
+              }
+            : null,
           parentId: tx.parentId ? tx.parentId.toString() : null,
           type: tx.type,
           amount: Math.round(tx.amount * 100) / 100,
@@ -185,24 +215,24 @@ export class TransactionController {
       const { sellerId, parentId, type, amount, note, tank500, tank1000, tank2000, paymentMode, date } = req.body;
 
       if (!sellerId || !mongoose.Types.ObjectId.isValid(sellerId)) {
-        res.status(400).json({ success: false, error: 'Valid seller ID is required.' });
+        res.status(400).json({ success: false, error: 'Valid seller ID is required.', message: 'Valid seller ID is required.' });
         return;
       }
 
       const seller = await SellerModel.findById(sellerId);
       if (!seller) {
-        res.status(404).json({ success: false, error: 'Seller not found.' });
+        res.status(404).json({ success: false, error: 'Seller not found.', message: 'Seller not found.' });
         return;
       }
 
       if (!type || !['DELIVERY', 'PAYMENT'].includes(type)) {
-        res.status(400).json({ success: false, error: 'Transaction type must be "DELIVERY" or "PAYMENT".' });
+        res.status(400).json({ success: false, error: 'Transaction type must be "DELIVERY" or "PAYMENT".', message: 'Transaction type must be "DELIVERY" or "PAYMENT".' });
         return;
       }
 
       const rawAmount = Number(amount);
       if (isNaN(rawAmount) || rawAmount <= 0) {
-        res.status(400).json({ success: false, error: 'Amount must be a positive number.' });
+        res.status(400).json({ success: false, error: 'Amount must be a positive number.', message: 'Amount must be a positive number.' });
         return;
       }
       const parsedAmount = Math.round(rawAmount * 100) / 100;
@@ -220,26 +250,166 @@ export class TransactionController {
         paymentMode: type === 'PAYMENT' ? (paymentMode ? String(paymentMode).trim() : null) : null,
       });
 
+      const receipt = TransactionController.buildServerReceipt(transaction, seller);
+
+      const formattedTx = {
+        id: transaction._id.toString(),
+        _id: transaction._id.toString(),
+        sellerId: transaction.sellerId.toString(),
+        sellerName: seller.name,
+        sellerPhone: seller.phone || null,
+        sellerEmail: seller.email || null,
+        sellerAddress: seller.address || null,
+        sellerGstNumber: seller.gstNumber || null,
+        seller: {
+          id: seller._id.toString(),
+          _id: seller._id.toString(),
+          name: seller.name,
+          phone: seller.phone || null,
+          email: seller.email || null,
+          address: seller.address || null,
+          gstNumber: seller.gstNumber || null,
+        },
+        parentId: transaction.parentId ? transaction.parentId.toString() : null,
+        type: transaction.type,
+        amount: transaction.amount,
+        date: transaction.date,
+        note: transaction.note || null,
+        tank500: transaction.tank500 || 0,
+        tank1000: transaction.tank1000 || 0,
+        tank2000: transaction.tank2000 || 0,
+        paymentMode: transaction.paymentMode || null,
+        createdAt: transaction.createdAt,
+        receipt,
+      };
+
       res.status(201).json({
         success: true,
+        message: 'Transaction created successfully.',
+        transaction: formattedTx,
+        receipt,
         data: {
-          id: transaction._id.toString(),
-          sellerId: transaction.sellerId.toString(),
-          parentId: transaction.parentId ? transaction.parentId.toString() : null,
-          type: transaction.type,
-          amount: transaction.amount,
-          date: transaction.date,
-          note: transaction.note || null,
-          tank500: transaction.tank500 || 0,
-          tank1000: transaction.tank1000 || 0,
-          tank2000: transaction.tank2000 || 0,
-          paymentMode: transaction.paymentMode || null,
-          createdAt: transaction.createdAt,
+          ...formattedTx,
+          transaction: formattedTx,
+          receipt,
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error recording transaction.' });
+      const errMsg = error.message || 'Error recording transaction.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
+  }
+
+  // GET /api/v1/transactions/:id/receipt - Server-generated official receipt
+  public static async getTransactionReceipt(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ success: false, error: 'Invalid transaction ID format.' });
+        return;
+      }
+
+      const tx = await TransactionModel.findById(id).populate('sellerId').lean();
+      if (!tx) {
+        res.status(404).json({ success: false, error: 'Transaction not found.' });
+        return;
+      }
+
+      let seller: any = tx.sellerId;
+      if (!seller || typeof seller !== 'object' || !seller.name) {
+        seller = await SellerModel.findById(tx.sellerId).lean();
+      }
+      const receipt = TransactionController.buildServerReceipt(tx, seller);
+
+      res.status(200).json({
+        success: true,
+        data: receipt,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Error generating receipt.' });
+    }
+  }
+
+  public static buildServerReceipt(transaction: any, seller: any) {
+    const txId = transaction._id ? transaction._id.toString() : (transaction.id || '');
+    const isDelivery = String(transaction.type).toUpperCase() === 'DELIVERY';
+    const t500 = Number(transaction.tank500) || 0;
+    const t1000 = Number(transaction.tank1000) || 0;
+    const t2000 = Number(transaction.tank2000) || 0;
+    const totalTanks = t500 + t1000 + t2000;
+
+    const items = [];
+    if (isDelivery) {
+      if (t500 > 0) {
+        items.push({
+          description: 'Water Storage Tank (Polymer)',
+          capacity: '500L',
+          quantity: t500,
+          unitName: 'Units',
+        });
+      }
+      if (t1000 > 0) {
+        items.push({
+          description: 'Water Storage Tank (Polymer)',
+          capacity: '1000L',
+          quantity: t1000,
+          unitName: 'Units',
+        });
+      }
+      if (t2000 > 0) {
+        items.push({
+          description: 'Water Storage Tank (Polymer)',
+          capacity: '2000L',
+          quantity: t2000,
+          unitName: 'Units',
+        });
+      }
+    } else {
+      items.push({
+        description: `Financial Payment Settlement (${transaction.paymentMode || 'Direct'})`,
+        capacity: 'N/A',
+        quantity: 1,
+        unitName: 'Payment',
+      });
+    }
+
+    return {
+      receiptNo: `RCP-${txId.slice(-8).toUpperCase()}`,
+      issueDate: transaction.date || transaction.createdAt || new Date(),
+      status: 'CONFIRMED & RECORDED',
+      company: {
+        name: process.env.COMPANY_NAME || process.env.VITE_COMPANY_NAME || 'Vasudha Polymer',
+        gst: process.env.COMPANY_GST || process.env.VITE_COMPANY_GST || '07AAAAA0000A1Z5',
+        phone: process.env.COMPANY_PHONE || process.env.VITE_COMPANY_PHONE || '+91 98765 43210',
+        address: process.env.COMPANY_ADDRESS || process.env.VITE_COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020',
+      },
+      seller: {
+        id: seller ? (seller._id ? seller._id.toString() : (seller.id || '')) : (transaction.sellerId?.toString() || ''),
+        name: seller?.name || transaction?.sellerName || 'Valued Vendor',
+        phone: seller?.phone || transaction?.sellerPhone || null,
+        email: seller?.email || transaction?.sellerEmail || null,
+        address: seller?.address || transaction?.sellerAddress || null,
+        gstNumber: seller?.gstNumber || transaction?.sellerGstNumber || null,
+      },
+      transaction: {
+        id: txId,
+        sellerId: seller ? (seller._id ? seller._id.toString() : (seller.id || '')) : (transaction.sellerId?.toString() || ''),
+        parentId: transaction.parentId ? transaction.parentId.toString() : null,
+        type: transaction.type,
+        amount: Number(transaction.amount) || 0,
+        formattedAmount: `₹ ${Number(transaction.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        date: transaction.date,
+        note: transaction.note || null,
+        paymentMode: transaction.paymentMode || null,
+        tank500: t500,
+        tank1000: t1000,
+        tank2000: t2000,
+        totalTanks,
+        createdAt: transaction.createdAt,
+      },
+      items,
+      totalUnits: totalTanks,
+    };
   }
 
   // PUT /api/v1/transactions/:id

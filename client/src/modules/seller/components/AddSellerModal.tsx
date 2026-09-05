@@ -37,19 +37,19 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({ isOpen, onClose,
       newErrors.name = 'Seller name is required';
     }
 
-    if (email.trim() && !/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
     if (requireAdditional) {
-      if (!phone.trim()) {
-        newErrors.phone = 'Phone number is required when additional fields are enabled';
+      if (!email.trim()) {
+        newErrors.email = 'Email address is required when additional fields are enabled';
+      } else if (!/\S+@\S+\.\S+/.test(email.trim())) {
+        newErrors.email = 'Please enter a valid email address';
       }
-      if (!address.trim()) {
-        newErrors.address = 'Address is required when additional fields are enabled';
-      }
+
       if (!gstNumber.trim()) {
         newErrors.gstNumber = 'GST Number is required when additional fields are enabled';
+      }
+    } else {
+      if (email.trim() && !/\S+@\S+\.\S+/.test(email.trim())) {
+        newErrors.email = 'Please enter a valid email address';
       }
     }
 
@@ -66,10 +66,11 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({ isOpen, onClose,
         phone: phone.trim() || undefined,
         address: address.trim() || undefined,
         gstNumber: gstNumber.trim() || undefined,
+        requireAdditional,
       });
       handleClose();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to add seller');
+      setError(err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to add seller');
     } finally {
       setIsSubmitting(false);
     }
@@ -122,7 +123,7 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({ isOpen, onClose,
             <p className="text-xs font-semibold text-slate-200">Require additional fields</p>
             <p className="text-[11px] text-slate-400 mt-0.5">
               {requireAdditional
-                ? 'Phone, address & GST number are required'
+                ? 'Email address & GST number are required'
                 : 'Only seller name is required'}
             </p>
           </div>
@@ -172,10 +173,15 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({ isOpen, onClose,
           )}
         </div>
 
-        {/* Email (always optional) */}
+        {/* Email Address */}
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-            Email Address <span className="text-slate-500 font-normal text-[10px]">(Optional)</span>
+            Email Address
+            {requireAdditional ? (
+              <span className="text-rose-400"> *</span>
+            ) : (
+              <span className="text-slate-500 font-normal text-[10px]"> (Optional)</span>
+            )}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -239,12 +245,7 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({ isOpen, onClose,
         {/* Phone Number */}
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-            Phone Number
-            {requireAdditional ? (
-              <span className="text-rose-400"> *</span>
-            ) : (
-              <span className="text-slate-500 font-normal text-[10px]"> (Optional)</span>
-            )}
+            Phone Number <span className="text-slate-500 font-normal text-[10px]">(Optional)</span>
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -272,12 +273,7 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({ isOpen, onClose,
         {/* Address */}
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-            Office / Dispatch Address
-            {requireAdditional ? (
-              <span className="text-rose-400"> *</span>
-            ) : (
-              <span className="text-slate-500 font-normal text-[10px]"> (Optional)</span>
-            )}
+            Office / Dispatch Address <span className="text-slate-500 font-normal text-[10px]">(Optional)</span>
           </label>
           <div className="relative">
             <div className="absolute top-2.5 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">

@@ -66,6 +66,7 @@ export interface CreateSellerDto {
   phone?: string;
   address?: string;
   gstNumber?: string;
+  requireAdditional?: boolean;
 }
 
 export interface CreateTransactionDto {

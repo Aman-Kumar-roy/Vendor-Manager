@@ -10,6 +10,7 @@ import { StatCard } from "../../../components/common/StatCard";
 import { Badge } from "../../../components/common/Badge";
 import { useAuth } from "../../../context/AuthContext";
 import { EditSellerModal } from "../components/EditSellerModal";
+import { Toast } from "../../../components/common/Toast";
 import {
   ArrowLeft,
   PlusCircle,
@@ -95,9 +96,12 @@ export const SellerDetailPage: React.FC = () => {
     fetchSellerDetail(currentPage, pageSize);
   }, [id, currentPage, pageSize]);
 
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
   const handleAddTransaction = async (dto: CreateTransactionDto) => {
     const res = await sellerApi.createTransaction(dto);
     if (res.success) {
+      setToastMsg('Transaction created successfully.');
       await fetchSellerDetail();
     }
   };
@@ -597,6 +601,15 @@ export const SellerDetailPage: React.FC = () => {
           onClose={() => setReceiptTx(null)}
           transaction={receiptTx}
           seller={seller}
+        />
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <Toast
+          message={toastMsg}
+          type="success"
+          onClose={() => setToastMsg(null)}
         />
       )}
     </div>

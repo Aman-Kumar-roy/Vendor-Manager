@@ -20,13 +20,13 @@ export class AuthController {
       const user = await UserModel.findOne({ email: cleanEmail });
 
       if (!user) {
-        res.status(401).json({ success: false, error: 'Invalid credentials.' });
+        res.status(401).json({ success: false, error: 'Invalid email or password. Please verify credentials.', message: 'Invalid email or password. Please verify credentials.' });
         return;
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        res.status(401).json({ success: false, error: 'Invalid credentials.' });
+        res.status(401).json({ success: false, error: 'Invalid email or password. Please verify credentials.', message: 'Invalid email or password. Please verify credentials.' });
         return;
       }
 

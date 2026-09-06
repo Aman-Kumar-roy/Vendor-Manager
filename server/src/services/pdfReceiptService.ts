@@ -114,23 +114,23 @@ export class PdfReceiptService {
     seller?: SellerDataInput | null
   ): Promise<Buffer> {
     const txId = (transaction._id ? transaction._id.toString() : transaction.id || '').toUpperCase();
+    const isDelivery = String(transaction.type).toUpperCase() === 'DELIVERY';
+    const receiptNo = `RCP-${txId.slice(-8).toUpperCase()}`;
+
+    // Company credentials from live .env / env config
+    const companyName = (env.COMPANY_NAME || 'Vasudha Polymer').toUpperCase();
+    const companyAddress = env.COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020';
+    const companyPhone = env.COMPANY_PHONE || '+91 98765 43210';
+    const companyGst = env.COMPANY_GST || '07AAAAA0000A1Z5';
+
     const updateTime = transaction.updatedAt ? new Date(transaction.updatedAt).getTime() : 0;
-    const cacheKey = `${txId}_${updateTime}`;
+    const cacheKey = `${txId}_${updateTime}_${companyName}_${companyGst}`;
 
     // Return from cache if valid
     const cached = pdfCache.get(cacheKey);
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
       return cached.buffer;
     }
-
-    const isDelivery = String(transaction.type).toUpperCase() === 'DELIVERY';
-    const receiptNo = `RCP-${txId.slice(-8).toUpperCase()}`;
-
-    // Company credentials from .env / env config
-    const companyName = (env.COMPANY_NAME || 'Vasudha Polymer').toUpperCase();
-    const companyAddress = env.COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020';
-    const companyPhone = env.COMPANY_PHONE || '+91 98765 43210';
-    const companyGst = env.COMPANY_GST || '07AAAAA0000A1Z5';
 
     // Vendor details
     const vendorName = seller?.name || 'Valued Vendor';

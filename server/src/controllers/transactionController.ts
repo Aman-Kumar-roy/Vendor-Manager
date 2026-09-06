@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { TransactionModel } from '../models/Transaction';
 import { SellerModel } from '../models/Seller';
 import { PdfReceiptService } from '../services/pdfReceiptService';
+import { env } from '../config/env';
 
 export class TransactionController {
   // GET /api/v1/transactions
@@ -413,10 +414,10 @@ export class TransactionController {
       issueDate: transaction.date || transaction.createdAt || new Date(),
       status: 'CONFIRMED & RECORDED',
       company: {
-        name: process.env.COMPANY_NAME || process.env.VITE_COMPANY_NAME || 'Vasudha Polymer',
-        gst: process.env.COMPANY_GST || process.env.VITE_COMPANY_GST || '07AAAAA0000A1Z5',
-        phone: process.env.COMPANY_PHONE || process.env.VITE_COMPANY_PHONE || '+91 98765 43210',
-        address: process.env.COMPANY_ADDRESS || process.env.VITE_COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020',
+        name: env.COMPANY_NAME,
+        gst: env.COMPANY_GST,
+        phone: env.COMPANY_PHONE,
+        address: env.COMPANY_ADDRESS,
       },
       seller: {
         id: seller ? (seller._id ? seller._id.toString() : (seller.id || '')) : (transaction.sellerId?.toString() || ''),

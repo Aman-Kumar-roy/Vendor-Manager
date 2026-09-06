@@ -158,26 +158,38 @@ export class ReportController {
       let effectiveEndDate: string | null = null;
 
       if (startParam && endParam) {
-        const start = new Date(String(startParam));
-        const end = new Date(String(endParam));
+        const sStr = String(startParam).split('T')[0];
+        const eStr = String(endParam).split('T')[0];
+        const start = new Date(`${sStr}T00:00:00.000Z`);
+        const end = new Date(`${eStr}T23:59:59.999Z`);
         if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999);
-          dateFilter = { date: { $gte: start, $lte: end } };
-          effectiveStartDate = start.toISOString().split('T')[0];
-          effectiveEndDate = end.toISOString().split('T')[0];
-          periodLabel = `${effectiveStartDate} to ${effectiveEndDate}`;
+          dateFilter = {
+            $or: [
+              { date: { $gte: start, $lte: end } },
+              { date: { $gte: sStr, $lte: `${eStr}T23:59:59.999Z` } },
+            ],
+          };
+          effectiveStartDate = sStr;
+          effectiveEndDate = eStr;
+          periodLabel = `${sStr} to ${eStr}`;
         }
       } else if (month && String(month).includes('-')) {
         const [yearStr, monthStr] = String(month).split('-');
         const year = parseInt(yearStr, 10);
         const monthIndex = parseInt(monthStr, 10) - 1;
         if (!isNaN(year) && !isNaN(monthIndex)) {
-          const startDate = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-          const endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
-          dateFilter = { date: { $gte: startDate, $lte: endDate } };
-          effectiveStartDate = startDate.toISOString().split('T')[0];
-          effectiveEndDate = endDate.toISOString().split('T')[0];
+          const startDate = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0));
+          const endDate = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59, 999));
+          const sStr = startDate.toISOString().split('T')[0];
+          const eStr = endDate.toISOString().split('T')[0];
+          dateFilter = {
+            $or: [
+              { date: { $gte: startDate, $lte: endDate } },
+              { date: { $gte: sStr, $lte: `${eStr}T23:59:59.999Z` } },
+            ],
+          };
+          effectiveStartDate = sStr;
+          effectiveEndDate = eStr;
           periodLabel = String(month);
         }
       }
@@ -200,8 +212,19 @@ export class ReportController {
         {
           $lookup: {
             from: 'sellers',
-            localField: '_id',
-            foreignField: '_id',
+            let: { sId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ['$_id', '$$sId'] },
+                      { $eq: [{ $toString: '$_id' }, { $toString: '$$sId' }] },
+                    ],
+                  },
+                },
+              },
+            ],
             as: 'seller',
           },
         },

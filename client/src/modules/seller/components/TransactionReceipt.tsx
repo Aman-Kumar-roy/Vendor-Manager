@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Printer, Download, Droplets, ShieldCheck, Building2, CheckCircle2 } from 'lucide-react';
 import { Transaction, Seller } from '../types';
+import { apiClient } from '../../../services/api.client';
 
 interface TransactionReceiptProps {
   isOpen: boolean;
@@ -30,11 +31,11 @@ const formatDateTime = (dateStr: string) => {
   } catch { return dateStr; }
 };
 
-// Company details from .env configuration
-const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || "Vasudha Polymer";
-const COMPANY_GST = import.meta.env.VITE_COMPANY_GST || "07AAAAA0000A1Z5";
-const COMPANY_PHONE = import.meta.env.VITE_COMPANY_PHONE || "+91 98765 43210";
-const COMPANY_ADDRESS = import.meta.env.VITE_COMPANY_ADDRESS || "Plot 42, Industrial Zone, New Delhi - 110020";
+// Fallback company details from client bundle
+const DEFAULT_COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || "Vasudha Polymer";
+const DEFAULT_COMPANY_GST = import.meta.env.VITE_COMPANY_GST || "07AAAAA0000A1Z5";
+const DEFAULT_COMPANY_PHONE = import.meta.env.VITE_COMPANY_PHONE || "+91 98765 43210";
+const DEFAULT_COMPANY_ADDRESS = import.meta.env.VITE_COMPANY_ADDRESS || "Plot 42, Industrial Zone, New Delhi - 110020";
 
 export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
   isOpen,
@@ -45,17 +46,31 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
   if (!isOpen) return null;
 
   const [downloading, setDownloading] = useState(false);
+  const [serverReceipt, setServerReceipt] = useState<any>(null);
   const isDelivery = String(transaction.type).toUpperCase() === 'DELIVERY';
   const txId = transaction.id || (transaction as any)._id || '';
   const receiptNo = `RCP-${txId.slice(-8).toUpperCase()}`;
 
+  // Fetch live canonical receipt metadata from server
+  useEffect(() => {
+    if (!isOpen || !txId) return;
+    apiClient
+      .get(`/transactions/${txId}/receipt`)
+      .then((res) => {
+        if (res.data?.success && res.data?.data) {
+          setServerReceipt(res.data.data);
+        }
+      })
+      .catch((err) => console.warn('Could not load server receipt metadata:', err));
+  }, [isOpen, txId]);
+
+  const compName = serverReceipt?.company?.name || DEFAULT_COMPANY_NAME;
+  const compGst = serverReceipt?.company?.gst || DEFAULT_COMPANY_GST;
+  const compPhone = serverReceipt?.company?.phone || DEFAULT_COMPANY_PHONE;
+  const compAddress = serverReceipt?.company?.address || DEFAULT_COMPANY_ADDRESS;
+
   const getServerPdfUrl = () => {
-    let rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      if (rawApiUrl.includes('railway.app')) {
-        rawApiUrl = 'http://localhost:5000/api/v1';
-      }
-    }
+    const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
     const baseUrl = rawApiUrl.replace(/\/+$/, '');
     const token = localStorage.getItem('vasudha_admin_token') || localStorage.getItem('token') || '';
     return `${baseUrl}/transactions/${txId}/receipt/pdf?token=${encodeURIComponent(token)}`;
@@ -150,12 +165,12 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
                     <img src="/logo.jpg" alt="Vasudha Polymer Logo" width={44} height={44} className="w-full h-full object-cover rounded-lg" style={{ width: '100%', height: '100%', maxWidth: 44, maxHeight: 44 }} />
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-brand-400 font-extrabold">{COMPANY_NAME}</p>
-                    <p className="text-sm font-bold text-slate-300 leading-tight mt-0.5">{COMPANY_ADDRESS}</p>
+                    <p className="text-xs uppercase tracking-widest text-brand-400 font-extrabold">{compName}</p>
+                    <p className="text-sm font-bold text-slate-300 leading-tight mt-0.5">{compAddress}</p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400 mt-1">
-                      <span>Phone: {COMPANY_PHONE}</span>
+                      <span>Phone: {compPhone}</span>
                       <span>•</span>
-                      <span className="font-mono font-bold text-slate-200">GSTIN: {COMPANY_GST}</span>
+                      <span className="font-mono font-bold text-slate-200">GSTIN: {compGst}</span>
                     </div>
                   </div>
                 </div>
@@ -287,7 +302,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
                   <div className="h-10 border-b border-slate-300 border-dashed flex items-end justify-center pb-1">
                     <span className="text-[10px] font-semibold text-slate-400 italic">Authorized Signature</span>
                   </div>
-                  <p className="text-[10px] uppercase font-bold text-slate-700 mt-1">For {COMPANY_NAME}</p>
+                  <p className="text-[10px] uppercase font-bold text-slate-700 mt-1">For {compName}</p>
                 </div>
               </div>
 
@@ -295,7 +310,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
               <div className="text-center pt-2 pb-1 border-t border-dashed border-slate-200">
                 <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1">
                   <CheckCircle2 width={14} height={14} className="w-3.5 h-3.5 text-emerald-600 inline" style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
-                  Official Computer Generated Document • {COMPANY_NAME}
+                  Official Computer Generated Document • {compName}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-0.5">{formatDateTime(new Date().toISOString())}</p>
                 <p className="text-[11px] font-extrabold text-slate-700 mt-1">Thank you for your business!</p>

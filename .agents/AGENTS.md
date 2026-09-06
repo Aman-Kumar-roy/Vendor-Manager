@@ -119,3 +119,19 @@
   - Render dark-themed Shimmer Skeletons (`src/components/Shimmer.tsx`) matching screen structure (`SellerCardSkeleton`, `TransactionCardSkeleton`, `ReceiptCardSkeleton`, `DashboardSkeleton`, `ReportsSkeleton`, `SellerDetailSkeleton`) **ONLY on cold cache loads** (`isLoading && !data`).
   - Warm cache visits render data instantly without layout shift, using `isFetching` exclusively for pull-to-refresh indicators.
  - **Dark Window OS Background**: `app.json` enforces `"userInterfaceStyle": "dark"` and `"backgroundColor": "#080d1a"` for Android and iOS native window containers to prevent white edge flashing during slide transitions.
+
+### 14. Live Environment Hot-Reloading & Clean Base URL Resolution
+- **Dynamic Live `.env` Watching**: `server/src/config/env.ts` watches root `.env` `mtimeMs` via `reloadEnvIfNeeded()`. All environment variables (`COMPANY_NAME`, `COMPANY_GST`, `COMPANY_PHONE`, `COMPANY_ADDRESS`, `PORT`, `JWT_SECRET`, etc.) are exposed as dynamic getters so changes to `.env` reflect immediately without requiring a server restart.
+- **No Hardcoded Domain Overrides**: Never write domain-sniffing or environment-intercepting hacks (e.g. `!envUrl.includes('railway.app')`) in client or mobile code. Web directly uses `import.meta.env.VITE_API_URL` and mobile directly uses `process.env.EXPO_PUBLIC_API_URL`.
+- **Company Branding PDF Invalidation**: `pdfReceiptService.ts` incorporates `companyName` and `companyGst` into the cache key (`${txId}_${updateTime}_${companyName}_${companyGst}`). Modifying company credentials in `.env` immediately invalidates cached receipt PDFs and generates fresh branded documents.
+- **Web Receipt Live Parity**: Web receipt modal (`TransactionReceipt.tsx`) queries the authoritative `/api/v1/transactions/:id/receipt` endpoint on open, ensuring web preview, mobile preview, and downloaded vector PDFs all render the live server company branding in 100% parity.
+
+### 15. Transaction Date Picker & Form Calendar Parity
+- All transaction creation forms and modals (`AddTransactionModal.tsx`, `DeliveryFormScreen.tsx`, `PaymentFormScreen.tsx`) MUST utilize the dedicated `DatePickerField` component (`app/src/components/ui/DatePickerField.tsx`) for date input, never a raw text input.
+- `DatePickerField` supports `presentationStyle="overFullScreen"`, transparent backdrop, year/month navigation, today / yesterday presets, and custom `inputBackground` to cleanly stack within both modal and screen contexts without modal nesting conflicts.
+
+### 16. Top Progress Bar Animation & Report Date Filtering
+- **Top Fetching Indicator**: All data revalidation across mobile screens must trigger TanStack Query (`queryClient.fetchQuery` / `useQuery`) so `useIsFetching() > 0` smoothly displays the top laser beam animation (`NavigationProgressBar.tsx`).
+- **No Disruptive Inline Spinners**: Inline activity indicator spinners must not be displayed inside card headers or report period banners (e.g. next to "All Time History").
+- **Decoupled Pull-to-Refresh**: Native `RefreshControl` spinners must strictly be tied to manual user gestures via `isPullRefreshing`, never to background cache revalidations.
+- **UTC Report Date Boundaries**: `reportController.ts` standardizes date filter inputs to full-day UTC boundaries (`${sStr}T00:00:00.000Z` to `${eStr}T23:59:59.999Z`) to eliminate timezone date-shifting artifacts. Aggregation pipelines must match dates across both BSON Date and string types and perform robust seller `$lookup` matching both ObjectId and string formats.

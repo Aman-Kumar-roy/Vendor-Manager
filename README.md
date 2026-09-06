@@ -107,6 +107,7 @@ The backend provides a complete RESTful API at `/api/v1` used by both the Web Da
 - `GET /api/v1/transactions` — Paginated transaction ledger with filtering (`page`, `limit`, `type`, `sellerId`)
 - `POST /api/v1/transactions` — Record new `DELIVERY` or `PAYMENT` transaction; returns both transaction and official `receipt` voucher
 - `GET /api/v1/transactions/:id/receipt` — Retrieve official server-generated receipt voucher (`RCP-XXXXXXXX`) with company credentials and digital seal
+- `GET /api/v1/transactions/:id/receipt/pdf` — Stream canonical server-generated vector PDF receipt (`Content-Type: application/pdf`), shared identically by both Web and Mobile
 - `PUT /api/v1/transactions/:id` — Update transaction (Admin only)
 - `DELETE /api/v1/transactions/:id` — Delete transaction (Admin only)
 

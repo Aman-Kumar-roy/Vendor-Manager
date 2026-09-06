@@ -12,13 +12,17 @@ export interface AuthRequest extends Request {
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ success: false, error: 'Authorization header with Bearer token is required.' });
-    return;
+  let token: string | undefined;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && typeof req.query.token === 'string') {
+    token = req.query.token;
   }
 
-  const token = authHeader.split(' ')[1];
+  if (!token) {
+    res.status(401).json({ success: false, error: 'Authorization header with Bearer token or token query parameter is required.' });
+    return;
+  }
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; email: string; role?: string };

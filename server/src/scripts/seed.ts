@@ -10,7 +10,7 @@ async function seedDatabase() {
   console.log('🌱 Seeding initial MongoDB data...');
 
   // Default Admin Accounts
-  const adminEmails = ['admin@webkul.com', 'admin@example.com'];
+  const adminEmails = ['admin@vasudhapolymer.com', 'admin@webkul.com', 'admin@example.com'];
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
   for (const email of adminEmails) {

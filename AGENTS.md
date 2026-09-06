@@ -67,12 +67,24 @@
 - **Terminology**: Never use "Volume" or "Report" in transaction forms. Use "Product / Item: Polymer Water Storage Tanks" and "Units / Quantity".
 - **Strict Capacities**: Strictly limited to `500L`, `1,000L`, and `2,000L` tanks (`tank500`, `tank1000`, `tank2000`).
 
-### 8. Server-Generated Official Receipts (Web & Mobile Parity)
-- **Single Source of Truth**: The mobile application MUST use the same server-generated receipt format as the web application.
-- `POST /api/v1/transactions` returns `201 Created` with `{ success: true, message: "Transaction created successfully.", transaction, receipt, data: { ...transaction, transaction, receipt } }`.
-- `GET /api/v1/transactions/:id/receipt` provides the official receipt voucher by transaction ID.
-- Receipts include: Receipt voucher number (`RCP-XXXXXXXX`), issue date, company credentials from `.env`, vendor details, itemized product breakdown, and digital verification seal.
-- Mobile displays this via `ReceiptModal.tsx`—do NOT duplicate or create separate mobile-only receipt generation logic.
+### 8. Server-Generated Official Receipts & Canonical PDF Architecture (Web & Mobile Parity)
+- **Single Source of Truth**: The Express REST API backend (`server/src/services/pdfReceiptService.ts`) is the **sole authoritative generator** of official PDF receipts for both Web and Mobile. Neither client may generate, lay out, or render receipts independently.
+- **REST Endpoints**:
+  - `POST /api/v1/transactions` returns `201 Created` with `{ success: true, message: "Transaction created successfully.", transaction, receipt, data: { ...transaction, transaction, receipt } }`.
+  - `GET /api/v1/transactions/:id/receipt` provides receipt JSON metadata including `pdfUrl: "/api/v1/transactions/:id/receipt/pdf"`.
+  - `GET /api/v1/transactions/:id/receipt/pdf` streams the canonical vector PDF (`Content-Type: application/pdf`, `Content-Disposition: inline; filename="Receipt-RCP-XXXXXXXX.pdf"`).
+- **Authentication & Query Param Fallback**:
+  - In addition to standard `Authorization: Bearer <token>` headers, `authMiddleware.ts` allows extracting JWT tokens from `req.query.token` to enable direct browser PDF tab previews and native mobile file downloads.
+- **Strict Vector Sizing & Formatting (No Blown-Up Assets)**:
+  - Logo is strictly bound to a `44x44pt` container with `fit: [44, 44]` and rounded frame, completely preventing image stretching or blowup.
+  - All icons (Building, Droplets, CheckCircle) are vector-bounded with exact point dimensions (`12-14pt`) avoiding SVG intrinsic 100% width expansion.
+  - Tanks delivered are strictly limited to `500L`, `1000L`, and `2000L` (`tank500`, `tank1000`, `tank2000`).
+  - Dynamic currency formatting is locked to exact paisa precision (`Rs. XX,XXX.00`).
+- **Cloud & Container-Safe Caching**:
+  - Utilizes an in-memory buffer cache keyed by `transactionId + updatedAt` with automatic invalidation on updates/deletes, delivering sub-millisecond response on repeated downloads with zero disk dependencies (100% safe for ephemeral cloud/Railway containers).
+- **Client Consumption**:
+  - **Web (`TransactionReceipt.tsx`)**: "Download PDF" and "Print / PDF" buttons directly open or download the server-generated PDF.
+  - **Mobile (`ReceiptModal.tsx`)**: Completely removed client-side HTML templates. Calls `downloadReceiptPdfApi` to fetch the server PDF, then uses `expo-print` (`Print.printAsync({ uri })`) and `expo-sharing` (`Sharing.shareAsync(uri)`). Web Receipt = Mobile Receipt = Same Server PDF.
 
 ### 9. Seller Toggle Logic & In-Place Creation (Web & Mobile Parity)
 - Both web (`AddSellerModal.tsx`) and mobile (`AddSellerModal.tsx` / `AddSellerScreen.tsx`) must implement the "Require additional fields" switch toggle:
@@ -96,10 +108,14 @@
 ### 12. Automated API Testing
 - All endpoints must pass `npm run test:api` before deployment.
 
-### 13. Real-Time Data & Shimmer Skeleton Loading (Zero Stale Caching)
-- **Live Real-Time Data**: All screens in the mobile app must query and display live, real-time data from the Express REST API on focus (`useFocusEffect`) and pull-to-refresh.
-- **NO Stale In-Memory Caching**: Do NOT use artificial in-memory caches that hide live database operations or delay monetary updates.
-- **Shimmer / Skeleton Experience**: While data is loading:
-  - Do NOT display blank white screens or unstyled spinners that collapse layout.
-  - Render dark-themed Shimmer Skeletons (`src/components/Shimmer.tsx`) matching screen structure (`SellerCardSkeleton`, `TransactionCardSkeleton`, `ReceiptCardSkeleton`, `DashboardSkeleton`, `ReportsSkeleton`, `SellerDetailSkeleton`).
+### 13. Real-Time Data, TanStack Query Caching & Shimmer Skeleton Loading
+- **Single Source of Truth**: The Express REST API backend remains the authoritative source of truth. Dynamic ledger calculations (`totalDeliveries`, `totalPaid`, `totalDues`) are never client-computed.
+- **TanStack React Query Cache Architecture (`@tanstack/react-query`)**:
+  - Global `QueryClient` configured in `app/src/query/queryClient.ts` with `staleTime: 2min` (5min for vendor lists), `gcTime: 15min`, and automatic deduplication.
+  - **Stale-While-Revalidate (SWR)**: Cached queries render immediately on screen navigation for a seamless, flicker-free experience while fresh data revalidates in the background.
+  - **Targeted Cache Invalidation**: All mutations (vendor creation, delivery recording, payment settlements) must invoke targeted invalidators (`invalidateTransactions`, `invalidateSellers`, `invalidateDashboard`, `invalidateReports`, `invalidateReceipts`) to immediately refresh backend data across screens.
+  - **Session Cache Cleanup**: Session logout in `AuthContext.tsx` invokes `clearAllQueryCache()` to scrub cached user state.
+- **Shimmer / Skeleton Experience**:
+  - Render dark-themed Shimmer Skeletons (`src/components/Shimmer.tsx`) matching screen structure (`SellerCardSkeleton`, `TransactionCardSkeleton`, `ReceiptCardSkeleton`, `DashboardSkeleton`, `ReportsSkeleton`, `SellerDetailSkeleton`) **ONLY on cold cache loads** (`isLoading && !data`).
+  - Warm cache visits render data instantly without layout shift, using `isFetching` exclusively for pull-to-refresh indicators.
 - **Dark Window OS Background**: `app.json` enforces `"userInterfaceStyle": "dark"` and `"backgroundColor": "#080d1a"` for Android and iOS native window containers to prevent white edge flashing during slide transitions.

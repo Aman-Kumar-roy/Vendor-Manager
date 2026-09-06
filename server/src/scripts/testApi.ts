@@ -296,6 +296,22 @@ async function runApiTests() {
           const receiptBody = await receiptRes.json() as any;
           assert(receiptBody.success === true, 'Expected receiptBody.success === true');
           assert(Boolean(receiptBody.data?.receiptNo), 'Expected receiptNo in voucher data');
+          assert(Boolean(receiptBody.data?.pdfUrl || receiptBody.receiptUrl), 'Expected pdfUrl in receipt response');
+
+          // Verify Server-Generated Canonical PDF Endpoint
+          const pdfRes = await fetch(`${BASE_URL}/transactions/${txId}/receipt/pdf`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+          assert(pdfRes.status === 200, `Expected status 200 for receipt PDF, got ${pdfRes.status}`);
+          assert(Boolean(pdfRes.headers.get('content-type')?.includes('application/pdf')), 'Expected application/pdf content type');
+          const pdfBuffer = await pdfRes.arrayBuffer();
+          assert(pdfBuffer.byteLength > 1000, `Expected valid PDF buffer (>1000 bytes), got ${pdfBuffer.byteLength}`);
+          const pdfMagicBytes = Buffer.from(pdfBuffer.slice(0, 5)).toString();
+          assert(pdfMagicBytes === '%PDF-', `Expected PDF header %PDF-, got ${pdfMagicBytes}`);
+
+          // Verify Query Parameter Token Support (for browser tab open & mobile download)
+          const pdfTokenRes = await fetch(`${BASE_URL}/transactions/${txId}/receipt/pdf?token=${authToken}`);
+          assert(pdfTokenRes.status === 200, `Expected status 200 for token query param PDF, got ${pdfTokenRes.status}`);
         }
       });
 

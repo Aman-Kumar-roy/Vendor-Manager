@@ -47,4 +47,8 @@ export const env = {
   APP_ENV: process.env.APP_ENV || process.env.NODE_ENV || 'development',
   APP_DEBUG: process.env.APP_DEBUG === 'true',
   IS_PRODUCTION: process.env.APP_ENV === 'production' || process.env.NODE_ENV === 'production',
+  COMPANY_NAME: process.env.VITE_COMPANY_NAME || process.env.COMPANY_NAME || 'Vasudha Polymer',
+  COMPANY_GST: process.env.VITE_COMPANY_GST || process.env.COMPANY_GST || '07AAAAA0000A1Z5',
+  COMPANY_PHONE: process.env.VITE_COMPANY_PHONE || process.env.COMPANY_PHONE || '+91 98765 43210',
+  COMPANY_ADDRESS: process.env.VITE_COMPANY_ADDRESS || process.env.COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020',
 };

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Printer, Droplets, ShieldCheck, Building2, CheckCircle2 } from 'lucide-react';
+import { X, Printer, Download, Droplets, ShieldCheck, Building2, CheckCircle2 } from 'lucide-react';
 import { Transaction, Seller } from '../types';
 
 interface TransactionReceiptProps {
@@ -44,16 +44,45 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const [downloading, setDownloading] = useState(false);
   const isDelivery = String(transaction.type).toUpperCase() === 'DELIVERY';
-  const receiptNo = `RCP-${transaction.id.slice(-8).toUpperCase()}`;
+  const txId = transaction.id || (transaction as any)._id || '';
+  const receiptNo = `RCP-${txId.slice(-8).toUpperCase()}`;
+
+  const getServerPdfUrl = () => {
+    let rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      if (rawApiUrl.includes('railway.app')) {
+        rawApiUrl = 'http://localhost:5000/api/v1';
+      }
+    }
+    const baseUrl = rawApiUrl.replace(/\/+$/, '');
+    const token = localStorage.getItem('vasudha_admin_token') || localStorage.getItem('token') || '';
+    return `${baseUrl}/transactions/${txId}/receipt/pdf?token=${encodeURIComponent(token)}`;
+  };
 
   const handlePrint = () => {
-    const originalTitle = document.title;
-    document.title = `Receipt-${receiptNo}-${seller.name.replace(/\s+/g, '_')}`;
-    window.print();
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 1000);
+    // Open the identical server-generated PDF in viewer for high-fidelity native print
+    const pdfUrl = getServerPdfUrl();
+    window.open(pdfUrl, '_blank');
+  };
+
+  const handleDownload = async () => {
+    try {
+      setDownloading(true);
+      const pdfUrl = getServerPdfUrl();
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `Receipt-${receiptNo}.pdf`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to download receipt PDF:', err);
+    } finally {
+      setTimeout(() => setDownloading(false), 800);
+    }
   };
 
   return ReactDOM.createPortal(
@@ -81,11 +110,20 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
             </span>
             <div className="flex items-center gap-2">
               <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+                title="Download Official PDF Receipt"
+              >
+                <Download width={14} height={14} className="w-3.5 h-3.5 text-slate-300" style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
+                <span>{downloading ? 'Downloading...' : 'Download PDF'}</span>
+              </button>
+              <button
                 onClick={handlePrint}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 !text-white text-xs font-bold transition-all shadow-glow cursor-pointer"
-                title="Print or Save as PDF"
+                title="Print or View Server PDF"
               >
-                <Printer className="w-4 h-4 text-white" />
+                <Printer width={16} height={16} className="w-4 h-4 text-white" style={{ width: 16, height: 16, minWidth: 16, minHeight: 16 }} />
                 <span className="text-white">Print / PDF</span>
               </button>
               <button
@@ -93,7 +131,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
                 className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 title="Close"
               >
-                <X className="w-4 h-4" />
+                <X width={16} height={16} className="w-4 h-4" style={{ width: 16, height: 16 }} />
               </button>
             </div>
           </div>
@@ -108,8 +146,8 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
             <div className="bg-slate-900 text-white px-6 py-5 print:py-4 print:bg-slate-900 print:text-white">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-700/80 shrink-0 bg-white p-0.5 mt-0.5">
-                    <img src="/logo.jpg" alt="Vasudha Polymer Logo" className="w-full h-full object-cover rounded-lg" />
+                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-700/80 shrink-0 bg-white p-0.5 mt-0.5" style={{ width: 48, height: 48, minWidth: 48, minHeight: 48 }}>
+                    <img src="/logo.jpg" alt="Vasudha Polymer Logo" width={44} height={44} className="w-full h-full object-cover rounded-lg" style={{ width: '100%', height: '100%', maxWidth: 44, maxHeight: 44 }} />
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-widest text-brand-400 font-extrabold">{COMPANY_NAME}</p>
@@ -139,7 +177,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 shadow-sm">
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-[10px] uppercase tracking-widest text-slate-500 font-extrabold flex items-center gap-1">
-                    <Building2 className="w-3 h-3 text-slate-400" />
+                    <Building2 width={14} height={14} className="w-3.5 h-3.5 text-slate-400 shrink-0" style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
                     Seller / Vendor Details
                   </p>
                   {seller.gstNumber && (
@@ -188,7 +226,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
                   <div className="flex items-start justify-between py-2 border-b border-slate-100">
                     <span className="text-slate-500 font-medium">Tanks Delivered</span>
                     <span className="font-bold text-blue-800 text-right flex flex-wrap items-center justify-end gap-1.5 max-w-[280px]">
-                      <Droplets className="w-3.5 h-3.5 text-blue-600 inline shrink-0" />
+                      <Droplets width={14} height={14} className="w-3.5 h-3.5 text-blue-600 inline shrink-0" style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
                       {[
                         (transaction.tank500 ?? 0) > 0 ? `500L: ${transaction.tank500}` : null,
                         (transaction.tank1000 ?? 0) > 0 ? `1000L: ${transaction.tank1000}` : null,
@@ -256,7 +294,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
               {/* Footer note */}
               <div className="text-center pt-2 pb-1 border-t border-dashed border-slate-200">
                 <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600 inline" />
+                  <CheckCircle2 width={14} height={14} className="w-3.5 h-3.5 text-emerald-600 inline" style={{ width: 14, height: 14, minWidth: 14, minHeight: 14 }} />
                   Official Computer Generated Document • {COMPANY_NAME}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-0.5">{formatDateTime(new Date().toISOString())}</p>

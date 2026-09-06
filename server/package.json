@@ -1,6 +1,6 @@
 {
   "name": "vasudha-seller-server",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Vasudha Polymer VTMS Express Server with MongoDB Controllers",
   "main": "dist/index.js",
   "scripts": {
@@ -11,12 +11,14 @@
     "test:api": "ts-node src/scripts/testApi.ts"
   },
   "dependencies": {
+    "@types/pdfkit": "^0.17.6",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.3.0"
+    "mongoose": "^8.3.0",
+    "pdfkit": "^0.20.2"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

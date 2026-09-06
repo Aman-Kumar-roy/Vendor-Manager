@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { TransactionModel } from '../models/Transaction';
 import { SellerModel } from '../models/Seller';
+import { PdfReceiptService } from '../services/pdfReceiptService';
 
 export class TransactionController {
   // GET /api/v1/transactions
@@ -323,10 +324,44 @@ export class TransactionController {
 
       res.status(200).json({
         success: true,
+        receiptUrl: receipt.pdfUrl,
         data: receipt,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || 'Error generating receipt.' });
+    }
+  }
+
+  // GET /api/v1/transactions/:id/receipt/pdf - Server-generated canonical PDF receipt
+  public static async getTransactionReceiptPdf(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ success: false, error: 'Invalid transaction ID format.' });
+        return;
+      }
+
+      const tx = await TransactionModel.findById(id).populate('sellerId').lean();
+      if (!tx) {
+        res.status(404).json({ success: false, error: 'Transaction not found.' });
+        return;
+      }
+
+      let seller: any = tx.sellerId;
+      if (!seller || typeof seller !== 'object' || !seller.name) {
+        seller = await SellerModel.findById(tx.sellerId).lean();
+      }
+
+      const pdfBuffer = await PdfReceiptService.generateReceiptPdf(tx as any, seller);
+      const receiptNo = `RCP-${tx._id.toString().slice(-8).toUpperCase()}`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Receipt-${receiptNo}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.status(200).send(pdfBuffer);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Error generating receipt PDF.' });
     }
   }
 
@@ -409,6 +444,7 @@ export class TransactionController {
       },
       items,
       totalUnits: totalTanks,
+      pdfUrl: `/api/v1/transactions/${txId}/receipt/pdf`,
     };
   }
 
@@ -450,6 +486,7 @@ export class TransactionController {
       }
 
       await transaction.save();
+      PdfReceiptService.invalidateCache(id);
 
       res.status(200).json({
         success: true,
@@ -491,6 +528,8 @@ export class TransactionController {
         res.status(404).json({ success: false, error: 'Transaction record not found.' });
         return;
       }
+
+      PdfReceiptService.invalidateCache(id);
 
       // If deleting a delivery, also clean up child payments linked to it
       if (tx.type === 'DELIVERY') {

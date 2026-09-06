@@ -1,6 +1,15 @@
 import axios from 'axios';
 
 const getBaseUrl = () => {
+  // If running locally in browser (localhost / 127.0.0.1), guarantee connection to local backend
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl && !envUrl.includes('railway.app')) {
+      return envUrl;
+    }
+    return 'http://localhost:5000/api/v1';
+  }
+
   const envUrl = import.meta.env.VITE_API_URL;
   if (!envUrl || envUrl.startsWith('/')) return envUrl || '/api/v1';
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {

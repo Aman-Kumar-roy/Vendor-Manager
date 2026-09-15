@@ -33,17 +33,23 @@ The repository contains the core platform powering vendor onboarding, delivery m
 1. **Unified Server & Single Source of Truth**: The Express REST API (`http://localhost:5000/api/v1`) serves as the single source of truth for both the web dashboard and external mobile clients.
 2. **Dynamic Financial Calculations**: `totalDeliveries`, `totalPaid`, and `totalDues` are calculated dynamically in server controllers from MongoDB transactions — never stored statically in documents.
 3. **Selling Units Domain Model**: The business domain is selling polymer water storage tanks to vendors/sellers. All transaction records strictly reflect products and unit counts.
-4. **Strict Tank Capacities**: Strictly limited to standard tank capacities:
-   - **`500L`** (`tank500`)
-   - **`1,000L`** (`tank1000`)
-   - **`2,000L`** (`tank2000`)
-   *(Tank sizes such as 300L, 750L, 1500L, etc. are strictly disallowed)*.
-5. **Server-Generated Official Receipts**: Both the web dashboard and mobile apps use the identical server-generated receipt system (`receipt: ServerReceipt` attached to transaction creation responses and `GET /api/v1/transactions/:id/receipt`).
-6. **Seller Toggle Parity**: Both web client and backend enforce the "Require additional fields" validation toggle:
+4. **Strict Tank Capacities & Flexible Line Items**: Strictly limited to standard tank capacities:
+   - **`500L`** (`tank500`, 3-6 Layers)
+   - **`1,000L`** (`tank1000`, 3-6 Layers, Foam: none/single/double)
+   - Dynamic line items via `tankItems: [{ size: 500 | 1000, quantity, layers: 3-6, foam }]`
+   *(2,000L tanks and sizes such as 300L, 750L, 1500L, 2000L are strictly disallowed and rejected with 400 Bad Request)*.
+5. **Back Due Tracking**: Every transaction computes and records `previousDues` and `currentDues`.
+6. **Server Database Performance & Pagination**:
+   - True database-level pagination (`.skip()` & `.limit()`) on `/sellers/:id` and `/transactions` with a maximum limit cap of 100.
+   - MongoDB `$group` aggregation pipelines for lifetime vendor statistics.
+   - Compound B-tree indexes on `TransactionSchema` and search indexes on `SellerSchema`.
+   - Safe regex sanitization (`escapeRegex`) with 100-character truncation to prevent ReDoS.
+7. **Server-Generated Official Receipts**: Both the web dashboard and mobile apps use the identical server-generated receipt system (`receipt: ServerReceipt` attached to transaction creation responses and `GET /api/v1/transactions/:id/receipt`).
+8. **Seller Toggle Parity**: Both web client and backend enforce the "Require additional fields" validation toggle:
    - **ON (Default)**: Validates that **Vendor Name**, **Email Address** (valid email format), and **GSTIN** (15 alphanumeric characters) are strictly mandatory before submission. Phone and address are optional.
    - **OFF**: Only **Vendor Name** is mandatory. Email (if provided, validated for format), GSTIN, Phone, and Address are optional.
-7. **Role-Based Security**: Admin and Manager roles. Deletion of transactions and vendor records is strictly restricted to `admin` accounts.
-8. **Currency & Financial Precision**: Dynamic totals and monetary balances are rounded to 2 decimal places (`Math.round(val * 100) / 100`) on the server.
+9. **Role-Based Security**: Admin and Manager roles. Deletion of transactions and vendor records is strictly restricted to `admin` accounts.
+10. **Currency & Financial Precision**: Dynamic totals and monetary balances are rounded to 2 decimal places (`Math.round(val * 100) / 100`) on the server.
 
 ---
 
@@ -72,7 +78,7 @@ vasudha-polymer/
 └── client/                  # React + Vite + Tailwind Web Admin Dashboard
     ├── src/
     │   ├── components/      # Modals, custom date pickers, table grids, Toast
-    │   ├── context/         # AuthContext & ThemeContext
+    │   ├── context/         # AuthContext (User Authentication & Session)
     │   ├── modules/
     │   │   ├── auth/        # Login page & authentication
     │   │   ├── seller/      # Seller tables, modals, and transaction receipts
@@ -97,7 +103,7 @@ The backend provides a complete RESTful API at `/api/v1` used by both the Web Da
 - `DELETE /api/v1/auth/users/:id` — Delete user account (Admin only)
 
 ### 2. Vendors / Sellers (`/api/v1/sellers`)
-- `GET /api/v1/sellers` — List all sellers with calculated balances (`totalDeliveries`, `totalPaid`, `totalDues`, `tank500`, `tank1000`, `tank2000`)
+- `GET /api/v1/sellers` — List all sellers with calculated balances (`totalDeliveries`, `totalPaid`, `totalDues`, `tank500`, `tank1000`)
 - `POST /api/v1/sellers` — Register new vendor with `requireAdditional` toggle support
 - `GET /api/v1/sellers/:id` — Retrieve seller profile, complete transaction ledger & linked deliveries
 - `PUT /api/v1/sellers/:id` — Update seller information (Admin only)
@@ -113,7 +119,7 @@ The backend provides a complete RESTful API at `/api/v1` used by both the Web Da
 
 ### 4. Reports & Analytics (`/api/v1/reports`)
 - `GET /api/v1/reports/summary` — High-level financial totals, payment recovery rate & top performing vendors
-- `GET /api/v1/reports/tank-summary` — Monthly unit breakdowns for polymer water storage tanks (`500L`, `1000L`, `2000L`)
+- `GET /api/v1/reports/tank-summary` — Monthly unit breakdowns for polymer water storage tanks (`500L`, `1000L`)
 
 ---
 
@@ -145,4 +151,4 @@ npm run start
 ```bash
 npm run test:api
 ```
-*(Executes complete 20-step automated verification suite against MongoDB)*
+*(Executes complete 25-step automated verification suite against MongoDB)*

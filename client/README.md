@@ -19,7 +19,7 @@ The client is structured modularly under `src/modules/`:
     - **Toggle ON (Default)**: Validates that **Name**, **Email** (valid format), and **GST Number** (15 chars) are strictly mandatory before submit. Phone and Address are optional.
     - **Toggle OFF**: Only **Name** is mandatory; Email, GST, Phone, and Address are optional.
     - Sends `requireAdditional` in API payload to `/api/v1/sellers`.
-  - `components/AddTransactionModal.tsx`: Transaction entry for **DELIVERY** (with strict tank unit sizes `500L`, `1000L`, `2000L`) and **PAYMENT** (CASH, UPI, CHEQUE, BANK_TRANSFER).
+  - `components/AddTransactionModal.tsx`: Transaction entry for **DELIVERY** (with strict tank unit sizes `500L` and `1000L`) and **PAYMENT** (CASH, UPI, CHEQUE, BANK_TRANSFER).
   - `components/TransactionReceipt.tsx`: Printable receipt voucher component displaying server-generated transaction data with company logo, credentials, and digital seal.
   - `components/OrderDetailsModal.tsx`: Full distribution inspection modal when clicking seller rows.
 - **`src/modules/receipts/`**:
@@ -31,7 +31,7 @@ The client is structured modularly under `src/modules/`:
 
 ## 📐 Business Logic & Rules for Future Web Dev
 
-1. **Strict Tank Sizes**: In all forms, tables, and charts, only `500`, `1000`, and `2000` (`tank500`, `tank1000`, `tank2000`) are supported.
+1. **Strict Tank Sizes**: In all forms, tables, and charts, only `500` and `1000` (`tank500`, `tank1000`) are supported. `2000L` (`tank2000`) is strictly prohibited.
 2. **Selling Units**: The business domain is selling water storage tank units to sellers. Never use "Volume" or "Report" in transaction screens.
 3. **Receipt Consistency**: Receipts must use the server-generated data returned from `/api/v1/transactions` or `/api/v1/transactions/:id/receipt`.
 4. **Forms & Pickers**:

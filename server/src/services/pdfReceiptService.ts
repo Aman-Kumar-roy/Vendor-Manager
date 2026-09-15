@@ -12,9 +12,19 @@ export interface ReceiptDataInput {
   createdAt?: string | Date;
   updatedAt?: string | Date;
   note?: string | null;
+  tankItems?: Array<{
+    size: 500 | 1000;
+    quantity: number;
+    layers: number;
+    foam?: 'none' | 'single' | 'double';
+  }>;
   tank500?: number;
   tank1000?: number;
-  tank2000?: number;
+  tank500_layers?: number | null;
+  tank1000_layers?: number | null;
+  tank1000_foam?: 'none' | 'single' | 'double' | null;
+  previousDues?: number;
+  currentDues?: number;
   vehicleNumber?: string | null;
   paymentMode?: string | null;
   parentDelivery?: {
@@ -99,7 +109,7 @@ export class PdfReceiptService {
   }
 
   private static formatCurrency(val: number = 0): string {
-    const num = Number(val || 0);
+    const num = Math.abs(Number(val || 0));
     return 'Rs. ' + num.toLocaleString('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -111,7 +121,8 @@ export class PdfReceiptService {
    */
   public static async generateReceiptPdf(
     transaction: ReceiptDataInput,
-    seller?: SellerDataInput | null
+    seller?: SellerDataInput | null,
+    includeDues: boolean = true
   ): Promise<Buffer> {
     const txId = (transaction._id ? transaction._id.toString() : transaction.id || '').toUpperCase();
     const isDelivery = String(transaction.type).toUpperCase() === 'DELIVERY';
@@ -124,7 +135,9 @@ export class PdfReceiptService {
     const companyGst = env.COMPANY_GST || '07AAAAA0000A1Z5';
 
     const updateTime = transaction.updatedAt ? new Date(transaction.updatedAt).getTime() : 0;
-    const cacheKey = `${txId}_${updateTime}_${companyName}_${companyGst}`;
+    const prevDuesKey = transaction.previousDues !== undefined ? transaction.previousDues : 'default';
+    const currDuesKey = transaction.currentDues !== undefined ? transaction.currentDues : 'default';
+    const cacheKey = `${txId}_${updateTime}_${companyName}_${companyGst}_${includeDues}_${prevDuesKey}_${currDuesKey}`;
 
     // Return from cache if valid
     const cached = pdfCache.get(cacheKey);
@@ -139,16 +152,53 @@ export class PdfReceiptService {
     const vendorEmail = seller?.email || '';
     const vendorAddress = seller?.address || '';
 
-    // Tank breakdown strictly 500L, 1000L, 2000L as per Critical Agent Instructions
+    // Tank breakdown strictly 500L and 1000L
     const t500 = Number(transaction.tank500) || 0;
     const t1000 = Number(transaction.tank1000) || 0;
-    const t2000 = Number(transaction.tank2000) || 0;
-    const hasTanks = isDelivery && (t500 > 0 || t1000 > 0 || t2000 > 0);
-    const tankParts = [
-      t500 > 0 ? `500L: ${t500}` : null,
-      t1000 > 0 ? `1000L: ${t1000}` : null,
-      t2000 > 0 ? `2000L: ${t2000}` : null,
-    ].filter(Boolean).join('   •   ');
+    const hasTanks = isDelivery && ((transaction.tankItems && transaction.tankItems.length > 0) || t500 > 0 || t1000 > 0);
+
+    interface DeliveryItem {
+      description: string;
+      size: number;
+      layers: number | null;
+      foam?: string | null;
+      quantity: number;
+    }
+
+    const deliveryItems: DeliveryItem[] = [];
+    if (isDelivery) {
+      if (transaction.tankItems && transaction.tankItems.length > 0) {
+        for (const item of transaction.tankItems) {
+          const qty = Number(item.quantity) || 0;
+          if (qty <= 0) continue;
+          deliveryItems.push({
+            description: 'Polymer Water Tank',
+            size: Number(item.size),
+            layers: item.layers || null,
+            foam: item.size === 1000 && item.foam && item.foam !== 'none' ? item.foam : null,
+            quantity: qty,
+          });
+        }
+      } else {
+        if (t500 > 0) {
+          deliveryItems.push({
+            description: 'Polymer Water Tank',
+            size: 500,
+            layers: transaction.tank500_layers || null,
+            quantity: t500,
+          });
+        }
+        if (t1000 > 0) {
+          deliveryItems.push({
+            description: 'Polymer Water Tank',
+            size: 1000,
+            layers: transaction.tank1000_layers || null,
+            foam: transaction.tank1000_foam && transaction.tank1000_foam !== 'none' ? transaction.tank1000_foam : null,
+            quantity: t1000,
+          });
+        }
+      }
+    }
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
@@ -240,7 +290,14 @@ export class PdfReceiptService {
       });
 
       doc.font('Courier-Bold').fontSize(10).fillColor('#f1f5f9');
-      doc.text(receiptNo, badgeX, curY + 40, { width: badgeWidth, align: 'center' });
+      doc.text(receiptNo, badgeX, curY + 38, { width: badgeWidth, align: 'center' });
+
+      const orderDateStr = PdfReceiptService.formatDate(transaction.date || transaction.createdAt);
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#cbd5e1');
+      doc.text(isDelivery ? `Order Date: ${orderDateStr}` : `Payment Date: ${orderDateStr}`, badgeX - 30, curY + 54, {
+        width: badgeWidth + 60,
+        align: 'center',
+      });
 
       curY += headerHeight + 14;
 
@@ -299,15 +356,25 @@ export class PdfReceiptService {
       // ── 3. TRANSACTION DETAILS KEY-VALUE TABLE ──
       const tableX = cardX + 12;
       const tableWidth = cardWidth - 24;
-      const rowHeight = 22;
 
-      const drawTableRow = (label: string, value: string, isMono = false, badgeText?: string, badgeBg?: string, badgeColor?: string) => {
+      const drawTableRow = (
+        label: string,
+        value: string,
+        isMono = false,
+        badgeText?: string,
+        badgeBg?: string,
+        badgeColor?: string,
+        isParagraph = false
+      ) => {
         // Divider line
         doc.moveTo(tableX, curY).lineTo(tableX + tableWidth, curY).lineWidth(0.5).stroke('#f1f5f9');
 
-        // Label
-        doc.font('Helvetica').fontSize(8.5).fillColor('#64748b');
-        doc.text(label, tableX + 4, curY + 6);
+        const labelX = tableX + 4;
+        const labelWidth = 135;
+        const valX = tableX + 145;
+        const valWidth = tableWidth - 150;
+
+        let thisRowHeight = 22;
 
         // Value or Badge
         if (badgeText && badgeBg && badgeColor) {
@@ -317,12 +384,36 @@ export class PdfReceiptService {
           doc.roundedRect(bx, curY + 3, bw, 16, 8).lineWidth(0.5).stroke(badgeColor);
           doc.font('Helvetica-Bold').fontSize(7.5).fillColor(badgeColor);
           doc.text(badgeText, bx, curY + 7, { width: bw, align: 'center' });
+
+          doc.font('Helvetica').fontSize(8.5).fillColor('#64748b');
+          doc.text(label, labelX, curY + 6, { width: labelWidth });
+        } else if (isParagraph) {
+          doc.font('Helvetica').fontSize(8.5);
+          const measuredHeight = doc.heightOfString(value, { width: valWidth, lineGap: 2 });
+          thisRowHeight = Math.max(22, Math.ceil(measuredHeight) + 12);
+
+          // Label
+          doc.font('Helvetica').fontSize(8.5).fillColor('#64748b');
+          doc.text(label, labelX, curY + 6, { width: labelWidth });
+
+          // Paragraph value left-aligned with line gap
+          doc.font('Helvetica').fontSize(8.5).fillColor('#0f172a');
+          doc.text(value, valX, curY + 6, { width: valWidth, align: 'left', lineGap: 2 });
         } else {
+          doc.font(isMono ? 'Courier-Bold' : 'Helvetica-Bold').fontSize(8.5);
+          const measuredHeight = doc.heightOfString(value, { width: valWidth, align: 'right' });
+          thisRowHeight = Math.max(22, Math.ceil(measuredHeight) + 10);
+
+          // Label
+          doc.font('Helvetica').fontSize(8.5).fillColor('#64748b');
+          doc.text(label, labelX, curY + 6, { width: labelWidth });
+
+          // Value strictly confined to right column so it never wraps over the label
           doc.font(isMono ? 'Courier-Bold' : 'Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
-          doc.text(value, tableX, curY + 6, { width: tableWidth - 4, align: 'right' });
+          doc.text(value, valX, curY + 6, { width: valWidth, align: 'right' });
         }
 
-        curY += rowHeight;
+        curY += thisRowHeight;
       };
 
       // Table Rows
@@ -335,11 +426,7 @@ export class PdfReceiptService {
         isDelivery ? '#eef2ff' : '#ecfdf5',
         isDelivery ? '#3730a3' : '#065f46'
       );
-      drawTableRow('Date of Record', PdfReceiptService.formatDate(transaction.date || transaction.createdAt));
-
-      if (hasTanks) {
-        drawTableRow('Tanks Delivered', tankParts, false);
-      }
+      drawTableRow(isDelivery ? 'Order Date' : 'Payment Date', orderDateStr);
 
       if (isDelivery && transaction.vehicleNumber) {
         drawTableRow('Vehicle / Transport', transaction.vehicleNumber, true);
@@ -351,19 +438,107 @@ export class PdfReceiptService {
       }
 
       if (!isDelivery && transaction.parentDelivery?.date) {
-        drawTableRow('Linked Delivery Order', PdfReceiptService.formatDate(transaction.parentDelivery.date));
+        drawTableRow('Linked Order Date', PdfReceiptService.formatDate(transaction.parentDelivery.date));
       }
 
-      if (transaction.note) {
-        drawTableRow('Reference / Note', transaction.note);
+      if (transaction.note && transaction.note.trim()) {
+        const cleanNote = transaction.note.trim();
+        const safeNote = cleanNote.length > 500 ? cleanNote.slice(0, 497) + '...' : cleanNote;
+        drawTableRow('Reference / Note', safeNote, false, undefined, undefined, undefined, true);
+      }
+
+      // ── ITEMIZED TANKS DELIVERED TABLE (CLEAN TABLE FORMAT) ──
+      if (isDelivery && deliveryItems.length > 0) {
+        doc.moveTo(tableX, curY).lineTo(tableX + tableWidth, curY).lineWidth(0.5).stroke('#e2e8f0');
+        curY += 8;
+
+        const totalDeliveredQty = deliveryItems.reduce((acc, item) => acc + item.quantity, 0);
+
+        // Header Section Banner
+        const itemHeaderHeight = 18;
+        doc.roundedRect(tableX, curY, tableWidth, itemHeaderHeight, 4).fill('#f1f5f9');
+
+        // Blue vector water drop icon
+        const dropX = tableX + 8;
+        const dropY = curY + 4;
+        doc.save();
+        doc.path(`M ${dropX + 3.5} ${dropY} C ${dropX + 1.5} ${dropY + 3.5} ${dropX} ${dropY + 5.5} ${dropX} ${dropY + 7} C ${dropX} ${dropY + 9} ${dropX + 1.5} ${dropY + 10} ${dropX + 3.5} ${dropY + 10} C ${dropX + 5.5} ${dropY + 10} ${dropX + 7} ${dropY + 9} ${dropX + 7} ${dropY + 7} C ${dropX + 7} ${dropY + 5.5} ${dropX + 5.5} ${dropY + 3.5} ${dropX + 3.5} ${dropY} Z`).fill('#2563eb');
+        doc.restore();
+
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#475569');
+        doc.text('ITEMIZED TANKS DELIVERED', tableX + 19, curY + 5, { characterSpacing: 0.5 });
+        curY += itemHeaderHeight + 4;
+
+        // Column Titles
+        const col1X = tableX + 6;
+        const col2X = tableX + 28;
+        const col3X = tableX + 175;
+        const col3W = 60;
+        const col4X = tableX + 245;
+        const col4W = 165;
+        const col5X = tableX + 415;
+        const col5W = tableWidth - 421;
+
+        doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b');
+        doc.text('#', col1X, curY);
+        doc.text('ITEM', col2X, curY);
+        doc.text('CAPACITY', col3X, curY, { width: col3W, align: 'center' });
+        doc.text('SPECIFICATION', col4X, curY);
+        doc.text('QUANTITY', col5X, curY, { width: col5W, align: 'right' });
+        curY += 12;
+
+        doc.moveTo(tableX, curY).lineTo(tableX + tableWidth, curY).lineWidth(0.5).stroke('#cbd5e1');
+        curY += 3;
+
+        // Table Rows
+        for (let i = 0; i < deliveryItems.length; i++) {
+          const item = deliveryItems[i];
+          const rowY = curY;
+          const itemRowH = 17;
+
+          if (i % 2 === 1) {
+            doc.rect(tableX, rowY - 1, tableWidth, itemRowH).fill('#f8fafc');
+          }
+
+          // Index
+          doc.font('Courier-Bold').fontSize(7.5).fillColor('#94a3b8');
+          doc.text(String(i + 1), col1X, rowY + 3);
+
+          // Item Description
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e293b');
+          doc.text(item.description, col2X, rowY + 3);
+
+          // Capacity
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#2563eb');
+          doc.text(`${item.size}L`, col3X, rowY + 3, { width: col3W, align: 'center' });
+
+          // Specification
+          const specParts: string[] = [];
+          if (item.layers) specParts.push(`${item.layers} Layers`);
+          if (item.foam) specParts.push(`${item.foam} foam`);
+          const specText = specParts.length > 0 ? specParts.join(' • ') : 'Standard';
+
+          doc.font('Helvetica').fontSize(8).fillColor('#475569');
+          doc.text(specText, col4X, rowY + 3);
+
+          // Quantity
+          doc.font('Courier-Bold').fontSize(8.5).fillColor('#0f172a');
+          doc.text(`${item.quantity} ${item.quantity === 1 ? 'Unit' : 'Units'}`, col5X, rowY + 3, { width: col5W, align: 'right' });
+
+          curY += itemRowH;
+        }
+
+        // Table footer divider
+        doc.moveTo(tableX, curY).lineTo(tableX + tableWidth, curY).lineWidth(0.5).stroke('#cbd5e1');
+        curY += 4;
       }
 
       // Closing divider
       doc.moveTo(tableX, curY).lineTo(tableX + tableWidth, curY).lineWidth(0.5).stroke('#f1f5f9');
-      curY += 12;
+      curY += 10;
 
       // ── 4. HIGHLIGHT AMOUNT CARD ──
-      const amountCardHeight = 56;
+      const amountCardHeight = 52;
       const amountCardBg = isDelivery ? '#eef2ff' : '#ecfdf5';
       const amountCardBorder = isDelivery ? '#c7d2fe' : '#a7f3d0';
       const amountTextColor = isDelivery ? '#312e81' : '#065f46';
@@ -375,19 +550,72 @@ export class PdfReceiptService {
       doc.text(
         isDelivery ? 'TOTAL DELIVERY AMOUNT' : 'AMOUNT CLEARED / SETTLED',
         tableX,
-        curY + 9,
+        curY + 8,
         { width: tableWidth, align: 'center', characterSpacing: 1 }
       );
 
-      doc.font('Helvetica-Bold').fontSize(18).fillColor(amountTextColor);
+      doc.font('Helvetica-Bold').fontSize(17).fillColor(amountTextColor);
       doc.text(
         PdfReceiptService.formatCurrency(transaction.amount),
         tableX,
-        curY + 24,
+        curY + 22,
         { width: tableWidth, align: 'center' }
       );
 
-      curY += amountCardHeight + 20;
+      curY += amountCardHeight + 10;
+
+      // ── 5. FINANCIAL BALANCE SUMMARY (3-COLUMN EXACT PREVIEW PARITY) ──
+      if (includeDues && transaction.previousDues !== undefined && transaction.previousDues !== null) {
+        const duesCardHeight = 44;
+        const colW = tableWidth / 3;
+
+        doc.roundedRect(tableX, curY, tableWidth, duesCardHeight, 6).fill('#f8fafc');
+        doc.roundedRect(tableX, curY, tableWidth, duesCardHeight, 6).lineWidth(1).stroke('#e2e8f0');
+
+        // Vertical dividers between 3 columns
+        doc.moveTo(tableX + colW, curY + 6).lineTo(tableX + colW, curY + duesCardHeight - 6).lineWidth(0.5).stroke('#cbd5e1');
+        doc.moveTo(tableX + colW * 2, curY + 6).lineTo(tableX + colW * 2, curY + duesCardHeight - 6).lineWidth(0.5).stroke('#cbd5e1');
+
+        const prev = Number(transaction.previousDues || 0);
+        const curr = transaction.currentDues !== undefined && transaction.currentDues !== null
+          ? Number(transaction.currentDues)
+          : (isDelivery ? prev + Number(transaction.amount || 0) : prev - Number(transaction.amount || 0));
+        const txAmt = Number(transaction.amount || 0);
+
+        // Column 1: Previous Dues / Advance
+        const prevLabel = prev < 0 ? 'PREVIOUS ADVANCE' : 'PREVIOUS DUES';
+        const prevVal = prev < 0 ? `+ ${PdfReceiptService.formatCurrency(prev)}` : PdfReceiptService.formatCurrency(prev);
+        const prevColor = prev < 0 ? '#047857' : '#1e293b';
+
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#64748b');
+        doc.text(prevLabel, tableX, curY + 8, { width: colW, align: 'center', characterSpacing: 0.5 });
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(prevColor);
+        doc.text(prevVal, tableX, curY + 22, { width: colW, align: 'center' });
+
+        // Column 2: Bill / Paid
+        const midLabel = isDelivery ? 'DELIVERY BILL' : 'PAYMENT PAID';
+        const midVal = (isDelivery ? '+ ' : '- ') + PdfReceiptService.formatCurrency(txAmt);
+        const midColor = isDelivery ? '#4338ca' : '#047857';
+
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#64748b');
+        doc.text(midLabel, tableX + colW, curY + 8, { width: colW, align: 'center', characterSpacing: 0.5 });
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(midColor);
+        doc.text(midVal, tableX + colW, curY + 22, { width: colW, align: 'center' });
+
+        // Column 3: Closing Balance / Advance
+        const currLabel = curr < 0 ? 'CLOSING ADVANCE' : 'CLOSING BALANCE';
+        const currVal = curr < 0 ? `+ ${PdfReceiptService.formatCurrency(curr)}` : PdfReceiptService.formatCurrency(curr);
+        const currColor = curr < 0 ? '#047857' : '#0f172a';
+
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#64748b');
+        doc.text(currLabel, tableX + colW * 2, curY + 8, { width: colW, align: 'center', characterSpacing: 0.5 });
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(currColor);
+        doc.text(currVal, tableX + colW * 2, curY + 22, { width: colW, align: 'center' });
+
+        curY += duesCardHeight + 16;
+      } else {
+        curY += 16;
+      }
 
       // ── 5. SIGNATURE BLOCK ──
       const sigColWidth = (tableWidth - 40) / 2;

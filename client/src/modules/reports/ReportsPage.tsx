@@ -25,11 +25,10 @@ interface SellerTankRow {
   sellerName:  string;
   total500:    number;
   total1000:   number;
-  total2000:   number;
   totalOrders: number;
 }
 
-type SortKey = "sellerName" | "total500" | "total1000" | "total2000" | "totalOrders";
+type SortKey = "sellerName" | "total500" | "total1000" | "totalOrders";
 
 const getInitialDateRange = (): DateRangeValue => {
   const now = new Date();
@@ -135,7 +134,6 @@ export const ReportsPage: React.FC = () => {
   const totals = useMemo(() => ({
     t500:    rows.reduce((s, r) => s + r.total500,    0),
     t1000:   rows.reduce((s, r) => s + r.total1000,   0),
-    t2000:   rows.reduce((s, r) => s + r.total2000,   0),
     total:   rows.reduce((s, r) => s + r.totalOrders, 0),
   }), [rows]);
 
@@ -215,10 +213,6 @@ export const ReportsPage: React.FC = () => {
           <div className="text-center bg-slate-900/40 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border sm:border-0 border-slate-800/60">
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">1,000 L Tanks</p>
             <p className="text-xl font-extrabold text-indigo-400 mt-0.5">{totals.t1000}</p>
-          </div>
-          <div className="text-center bg-slate-900/40 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border sm:border-0 border-slate-800/60">
-            <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">2,000 L Tanks</p>
-            <p className="text-xl font-extrabold text-violet-400 mt-0.5">{totals.t2000}</p>
           </div>
           <div className="text-center bg-slate-900/40 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border sm:border-0 border-slate-800/60 sm:border-l sm:border-slate-800 sm:pl-8">
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Total Orders</p>
@@ -324,14 +318,6 @@ export const ReportsPage: React.FC = () => {
                           {row.total1000}
                         </span>
                       </div>
-                      <div className="text-center">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                          2,000 L
-                        </span>
-                        <span className="font-mono font-extrabold text-violet-400 text-xs">
-                          {row.total2000}
-                        </span>
-                      </div>
                     </div>
                   </div>
                 );
@@ -350,7 +336,6 @@ export const ReportsPage: React.FC = () => {
                   <ThButton k="sellerName">Seller Name</ThButton>
                   <ThButton k="total500" className="text-right">500 L Tanks</ThButton>
                   <ThButton k="total1000" className="text-right">1,000 L Tanks</ThButton>
-                  <ThButton k="total2000" className="text-right">2,000 L Tanks</ThButton>
                   <ThButton k="totalOrders" className="text-right">Total Tank Orders</ThButton>
                   <th className="py-3.5 px-5 text-right" />
                 </tr>
@@ -423,18 +408,6 @@ export const ReportsPage: React.FC = () => {
                           )}
                         </td>
 
-                        {/* 2000 L */}
-                        <td className="py-4 px-5 text-right">
-                          {row.total2000 > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-300 font-extrabold text-xs">
-                              <Droplets className="w-3 h-3" />
-                              {row.total2000}
-                            </span>
-                          ) : (
-                            <span className="text-slate-600 font-medium">—</span>
-                          )}
-                        </td>
-
                         {/* Total Orders */}
                         <td className="py-4 px-5 text-right">
                           <span
@@ -469,7 +442,6 @@ export const ReportsPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-5 text-right text-blue-400 font-extrabold">{totals.t500}</td>
                     <td className="py-3.5 px-5 text-right text-indigo-400 font-extrabold">{totals.t1000}</td>
-                    <td className="py-3.5 px-5 text-right text-violet-400 font-extrabold">{totals.t2000}</td>
                     <td className="py-3.5 px-5 text-right text-brand-400 text-sm font-extrabold">{totals.total}</td>
                     <td />
                   </tr>

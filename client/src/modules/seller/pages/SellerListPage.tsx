@@ -153,7 +153,7 @@ export const SellerListPage: React.FC = () => {
       currency: 'INR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(val).replace('₹', '₹ ');
+    }).format(Math.abs(val || 0)).replace('₹', '₹ ');
   };
 
   return (
@@ -165,7 +165,7 @@ export const SellerListPage: React.FC = () => {
             <div className="w-8 h-8 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shrink-0">
               <Users className="w-4 h-4 text-brand-400" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
               Seller Management
             </h2>
           </div>
@@ -226,7 +226,7 @@ export const SellerListPage: React.FC = () => {
           value={formatCurrency(summary.totalDues)}
           subtitle="Outstanding balances (₹)"
           icon={<Wallet className="w-5 h-5" />}
-          accentColor={summary.totalDues > 0 ? 'amber' : 'brand'}
+          accentColor="amber"
         />
       </div>
 

@@ -8,8 +8,10 @@
 
 ### IMPORTANT RULE: Do NOT Add or Remove Fields Without Explicit Instruction
 
-- Only the following tank sizes are allowed: `500`, `1000`, `2000` (`tank500`, `tank1000`, `tank2000`)
-- Do NOT add `tank300`, `tank750`, `tank1500`, or any other tank size
+- Only the following tank sizes are allowed: `500` and `1000` (`tank500`, `tank1000`). `2000L` (`tank2000`) has been completely removed and is prohibited.
+- Do NOT add `tank300`, `tank750`, `tank1500`, `tank2000`, or any other tank size
+- Deliveries support flexible line items via `tankItems: [{ size: 500 | 1000, quantity, layers: 3-6, foam?: 'none' | 'single' | 'double' }]`
+- Back due tracking: Every transaction tracks `previousDues` and `currentDues`
 - Do NOT add fields unless explicitly told
 - Always update documentation when fields or project structure change
 - If you think a field is missing, ASK first – do NOT add it on your own
@@ -60,12 +62,24 @@
     1. `View Official Receipt` — Opens `ReceiptModal` displaying the server-generated voucher
     2. `+ Record Another` — Resets form inputs while keeping screen ready for the next entry
     3. `Done` — Gracefully exits/closes modal and refreshes data in-place only when user deliberately chooses to do so
-- **Pre-Submission Live Summary**: Display live vendor name, itemized unit counts (strictly `500L`, `1000L`, `2000L`), and total amount before submission.
+- **Pre-Submission Live Summary**: Display live vendor name, itemized unit counts (strictly `500L`, `1000L`), and total amount before submission.
 
-### 7. Correct Business Logic & Terminology (Selling Units)
+### 7. Correct Business Logic & Terminology (Selling Units, Flexible Line Items, Layers & Foam)
 - **Core Concept**: We are selling polymer water storage tank units to sellers/vendors.
 - **Terminology**: Never use "Volume" or "Report" in transaction forms. Use "Product / Item: Polymer Water Storage Tanks" and "Units / Quantity".
-- **Strict Capacities**: Strictly limited to `500L`, `1,000L`, and `2,000L` tanks (`tank500`, `tank1000`, `tank2000`).
+- **Strict Capacities**: Strictly limited to `500L` and `1,000L` tanks (`tank500`, `tank1000`). `2000L` is completely prohibited and rejected with 400 Bad Request.
+- **Dynamic Line Items**: Deliveries accept dynamic line items via `tankItems: [{ size: 500 | 1000, quantity: number, layers: number, foam?: 'none' | 'single' | 'double' }]`.
+- **Tank Layers**:
+  - Layers: Number, integer between 3 and 6 mandatory per tank item.
+- **Foam Type (1000L Tanks Only)**:
+  - Foam type: `none`, `single`, `double` (default `'none'`). Prohibited on 500L tanks.
+- **Back Due Tracking**:
+  - `previousDues`: Outstanding seller dues strictly before this transaction.
+  - `currentDues`: Outstanding seller dues immediately after this transaction.
+  - Displayed on transaction rows, modal views, and canonical PDF receipts.
+- **Payment Exemption & Backward Compatibility**:
+  - For `PAYMENT` transactions, tank, layer, and foam fields are ignored/cleared.
+  - Existing legacy transactions without layers/foam/tankItems remain valid (optional with graceful display fallbacks).
 
 ### 8. Server-Generated Official Receipts & Canonical PDF Architecture (Web & Mobile Parity)
 - **Single Source of Truth**: The Express REST API backend (`server/src/services/pdfReceiptService.ts`) is the **sole authoritative generator** of official PDF receipts for both Web and Mobile. Neither client may generate, lay out, or render receipts independently.
@@ -78,7 +92,8 @@
 - **Strict Vector Sizing & Formatting (No Blown-Up Assets)**:
   - Logo is strictly bound to a `44x44pt` container with `fit: [44, 44]` and rounded frame, completely preventing image stretching or blowup.
   - All icons (Building, Droplets, CheckCircle) are vector-bounded with exact point dimensions (`12-14pt`) avoiding SVG intrinsic 100% width expansion.
-  - Tanks delivered are strictly limited to `500L`, `1000L`, and `2000L` (`tank500`, `tank1000`, `tank2000`).
+  - Tanks delivered are strictly limited to `500L` and `1000L` (`tank500`, `tank1000`).
+  - Canonical PDF receipts include Previous Dues and Closing Dues in the settlement table.
   - Dynamic currency formatting is locked to exact paisa precision (`Rs. XX,XXX.00`).
 - **Cloud & Container-Safe Caching**:
   - Utilizes an in-memory buffer cache keyed by `transactionId + updatedAt` with automatic invalidation on updates/deletes, delivering sub-millisecond response on repeated downloads with zero disk dependencies (100% safe for ephemeral cloud/Railway containers).
@@ -135,3 +150,22 @@
 - **No Disruptive Inline Spinners**: Inline activity indicator spinners must not be displayed inside card headers or report period banners (e.g. next to "All Time History").
 - **Decoupled Pull-to-Refresh**: Native `RefreshControl` spinners must strictly be tied to manual user gestures via `isPullRefreshing`, never to background cache revalidations.
 - **UTC Report Date Boundaries**: `reportController.ts` standardizes date filter inputs to full-day UTC boundaries (`${sStr}T00:00:00.000Z` to `${eStr}T23:59:59.999Z`) to eliminate timezone date-shifting artifacts. Aggregation pipelines must match dates across both BSON Date and string types and perform robust seller `$lookup` matching both ObjectId and string formats.
+
+### 17. Database Performance, Pagination & Safe Regex Querying
+- **Database-Level Pagination**: Endpoints returning collections (`/api/v1/transactions`, `/api/v1/sellers`, `/api/v1/sellers/:id`) MUST apply `.skip()` and `.limit()` directly at the MongoDB query level with a mandatory maximum limit cap (`Math.min(limit, 100)`). Never fetch unbounded collections into Node.js memory.
+- **Aggregation for Lifetime Totals**: In `/sellers/:id` and `/reports/*`, compute vendor metrics (`totalDeliveries`, `totalPaid`, `tank500`, `tank1000`) via MongoDB `$group` aggregation pipelines instead of iterating over historical records in Node.
+- **Safe Regex Escaping**: All user search inputs used in regular expressions (`new RegExp(escapeRegex(search), 'i')`) must be escaped and truncated (`slice(0, 100)`) to prevent ReDoS vulnerabilities.
+- **Compound & Search Indexes**:
+  - `TransactionSchema`: Indexed on `{ sellerId: 1, date: -1, createdAt: -1 }`, `{ type: 1, date: -1, createdAt: -1 }`, `{ date: -1, createdAt: -1 }`, `{ parentId: 1, type: 1 }`, and `{ createdAt: -1 }`.
+  - `SellerSchema`: Indexed on `{ createdAt: -1 }`, `{ name: 1 }`, `{ phone: 1 }`, `{ email: 1 }`, and `{ gstNumber: 1 }`.
+
+### 18. Pure Dark Mode Architecture & Text Contrast (Web Client)
+- **Unified Dark Theme**: The web application uses a pure dark glassmorphic design (`bg-slate-950`, `bg-slate-900/80`, `border-slate-800`). Light mode has been completely removed to guarantee visual excellence and avoid light-on-dark contrast regressions.
+- **Root `dark` Class**: `client/index.html` permanently defines `<html lang="en" class="dark h-full bg-slate-950 text-slate-100">` ensuring Tailwind's `darkMode: 'class'` properly renders crisp white and slate text across all views, modal dialogs, and form inputs.
+- **Clean Yellow Dues & Number Formatting**:
+  - Outstanding dues are styled in yellow / amber (`text-amber-400`, `bg-amber-500/10 text-amber-300 border-amber-500/25`).
+  - Monetary values use clean positive formatting (`Math.abs(val)`) across tables and summary cards without minus sign prefixes.
+- **Multiline Reference / Note Textarea**:
+  - Transaction creation forms provide a multiline `<textarea>` for notes/references with `maxLength={500}` and live character counter.
+  - Server PDF receipt engine (`pdfReceiptService.ts`) calculates dynamic row heights and prints long note paragraphs with automatic left alignment without text clipping.
+- **Physical Document Print Parity**: Printable receipt cards (`TransactionReceipt.tsx`) maintain physical paper styling (`bg-white text-slate-900 border border-slate-200`) so printed vouchers and downloaded vector PDFs have 100% exact layout parity.

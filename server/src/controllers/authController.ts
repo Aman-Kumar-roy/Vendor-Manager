@@ -12,7 +12,7 @@ export class AuthController {
       const { email, password } = req.body;
 
       if (!email || !password) {
-        res.status(400).json({ success: false, error: 'Email and password are required.' });
+        res.status(400).json({ success: false, error: 'Email and password are required.', message: 'Email and password are required.' });
         return;
       }
 
@@ -49,7 +49,8 @@ export class AuthController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Login failed.' });
+      const errMsg = error.message || 'Login failed.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -57,13 +58,13 @@ export class AuthController {
   public static async getMe(req: AuthRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
-        res.status(401).json({ success: false, error: 'Unauthorized session.' });
+        res.status(401).json({ success: false, error: 'Unauthorized session.', message: 'Unauthorized session.' });
         return;
       }
 
       const user = await UserModel.findById(req.user.id).select('-password');
       if (!user) {
-        res.status(404).json({ success: false, error: 'User account not found.' });
+        res.status(404).json({ success: false, error: 'User account not found.', message: 'User account not found.' });
         return;
       }
 
@@ -79,7 +80,8 @@ export class AuthController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Session verification failed.' });
+      const errMsg = error.message || 'Session verification failed.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -89,30 +91,30 @@ export class AuthController {
       const { name, email, password, role } = req.body;
 
       if (!name || !name.trim()) {
-        res.status(400).json({ success: false, error: 'Full name is required.' });
+        res.status(400).json({ success: false, error: 'Full name is required.', message: 'Full name is required.' });
         return;
       }
 
       if (!email || !email.trim()) {
-        res.status(400).json({ success: false, error: 'Email address is required.' });
+        res.status(400).json({ success: false, error: 'Email address is required.', message: 'Email address is required.' });
         return;
       }
 
       const cleanEmail = email.toLowerCase().trim();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanEmail)) {
-        res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
+        res.status(400).json({ success: false, error: 'Please provide a valid email address.', message: 'Please provide a valid email address.' });
         return;
       }
 
       if (!password || password.length < 6) {
-        res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+        res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.', message: 'Password must be at least 6 characters long.' });
         return;
       }
 
       const existingUser = await UserModel.findOne({ email: cleanEmail });
       if (existingUser) {
-        res.status(400).json({ success: false, error: 'A user with this email address already exists.' });
+        res.status(400).json({ success: false, error: 'A user with this email address already exists.', message: 'A user with this email address already exists.' });
         return;
       }
 
@@ -143,7 +145,8 @@ export class AuthController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Failed to create user.' });
+      const errMsg = error.message || 'Failed to create user.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -170,7 +173,8 @@ export class AuthController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Failed to fetch users.' });
+      const errMsg = error.message || 'Failed to fetch users.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -182,6 +186,7 @@ export class AuthController {
         res.status(403).json({
           success: false,
           error: 'Access denied: Only administrators have permission to delete user accounts.',
+          message: 'Access denied: Only administrators have permission to delete user accounts.',
         });
         return;
       }
@@ -189,19 +194,19 @@ export class AuthController {
       const { id } = req.params;
 
       if (!id) {
-        res.status(400).json({ success: false, error: 'User ID is required.' });
+        res.status(400).json({ success: false, error: 'User ID is required.', message: 'User ID is required.' });
         return;
       }
 
       // Prevent deleting own currently active account
       if (req.user && req.user.id === id) {
-        res.status(400).json({ success: false, error: 'You cannot delete your own active account.' });
+        res.status(400).json({ success: false, error: 'You cannot delete your own active account.', message: 'You cannot delete your own active account.' });
         return;
       }
 
       const userToDelete = await UserModel.findById(id);
       if (!userToDelete) {
-        res.status(404).json({ success: false, error: 'User not found.' });
+        res.status(404).json({ success: false, error: 'User not found.', message: 'User not found.' });
         return;
       }
 
@@ -209,7 +214,7 @@ export class AuthController {
       if (userToDelete.role === 'admin') {
         const adminCount = await UserModel.countDocuments({ role: 'admin' });
         if (adminCount <= 1) {
-          res.status(400).json({ success: false, error: 'Cannot delete the only remaining administrator account.' });
+          res.status(400).json({ success: false, error: 'Cannot delete the only remaining administrator account.', message: 'Cannot delete the only remaining administrator account.' });
           return;
         }
       }
@@ -221,7 +226,8 @@ export class AuthController {
         message: 'User deleted successfully.',
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Failed to delete user.' });
+      const errMsg = error.message || 'Failed to delete user.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 }

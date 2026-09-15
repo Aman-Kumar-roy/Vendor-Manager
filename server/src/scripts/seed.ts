@@ -52,16 +52,23 @@ async function seedDatabase() {
 
     console.log('✅ Demo sellers seeded: Apex Aqua Solutions, Metro Water Suppliers');
 
-    // Seed Demo Transactions
+    // Seed Demo Transactions with Flexible Tank Line Items & Previous Dues
     await TransactionModel.create([
       {
         sellerId: seller1._id,
         type: 'DELIVERY',
         amount: 25000,
-        note: 'Initial supply of 1000L and 2000L tanks',
-        tank500: 0,
-        tank1000: 10,
-        tank2000: 5,
+        note: 'Initial supply of 500L and 1000L tanks',
+        tankItems: [
+          { size: 500, quantity: 4, layers: 3, foam: 'none' },
+          { size: 1000, quantity: 6, layers: 4, foam: 'double' },
+        ],
+        tank500: 4,
+        tank1000: 6,
+        tank500_layers: 3,
+        tank1000_layers: 4,
+        tank1000_foam: 'double',
+        previousDues: 0,
         date: new Date('2026-08-10'),
       },
       {
@@ -70,16 +77,25 @@ async function seedDatabase() {
         amount: 15000,
         paymentMode: 'UPI',
         note: 'Partial payment received via UPI',
+        previousDues: 25000,
         date: new Date('2026-08-12'),
       },
       {
         sellerId: seller2._id,
         type: 'DELIVERY',
         amount: 18000,
-        note: 'Supply of 500L and 1000L tanks',
+        note: 'Supply of 500L and 1000L tanks with varied layers',
+        tankItems: [
+          { size: 500, quantity: 8, layers: 3, foam: 'none' },
+          { size: 500, quantity: 4, layers: 4, foam: 'none' },
+          { size: 1000, quantity: 6, layers: 5, foam: 'single' },
+        ],
         tank500: 12,
         tank1000: 6,
-        tank2000: 0,
+        tank500_layers: 4,
+        tank1000_layers: 5,
+        tank1000_foam: 'single',
+        previousDues: 0,
         date: new Date('2026-08-15'),
       },
     ]);

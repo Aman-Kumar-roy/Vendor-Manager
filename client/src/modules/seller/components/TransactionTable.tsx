@@ -49,10 +49,10 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
   };
 
   const formatCurrency = (val: number = 0) => {
-    return '₹' + new Intl.NumberFormat('en-IN', {
+    return '₹ ' + new Intl.NumberFormat('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(val);
+    }).format(Math.abs(val));
   };
 
   const formatDate = (dateStr: string) => {
@@ -91,8 +91,10 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
             const hasLinkedPayments = tx.linkedPayments && tx.linkedPayments.length > 0;
             const isExpanded = expandedOrders[tx.id];
 
+            const advanceCredit = tx.advanceCredit || 0;
             const paidAmount = tx.paidAmount || 0;
-            const remainingDue = tx.remainingDue !== undefined ? tx.remainingDue : tx.amount;
+            const remainingDue = tx.remainingDue !== undefined ? tx.remainingDue : 0;
+            const totalCovered = Math.min(tx.amount, paidAmount + advanceCredit);
 
             return (
               <div
@@ -133,11 +135,11 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                       <span className="text-xs text-slate-400">Order Status:</span>
                       {remainingDue <= 0 ? (
                         <span className="text-emerald-400 font-bold text-xs flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Fully Paid
+                          <CheckCircle2 className="w-3 h-3" /> {paidAmount >= tx.amount ? 'Fully Paid' : 'Settled (Advance)'}
                         </span>
-                      ) : paidAmount > 0 ? (
+                      ) : (paidAmount > 0 || advanceCredit > 0) ? (
                         <span className="text-amber-400 font-bold text-xs flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Partial ({formatCurrency(paidAmount)} paid)
+                          <Clock className="w-3 h-3" /> Partial ({formatCurrency(totalCovered)} covered)
                         </span>
                       ) : (
                         <span className="text-amber-300 font-bold text-xs">Unpaid Order</span>
@@ -156,10 +158,10 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                       </div>
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                          Paid
+                          {paidAmount > 0 ? 'Paid' : advanceCredit > 0 ? 'Advance' : 'Paid'}
                         </span>
                         <span className="font-mono font-extrabold text-emerald-400 text-xs">
-                          {formatCurrency(paidAmount)}
+                          {formatCurrency(paidAmount > 0 ? paidAmount : totalCovered)}
                         </span>
                       </div>
                       <div>
@@ -180,7 +182,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                           Payment Amount
                         </span>
                         <span className="font-mono font-extrabold text-emerald-400 text-sm">
-                          -{formatCurrency(tx.amount)}
+                          {formatCurrency(tx.amount)}
                         </span>
                       </div>
                       {tx.paymentMode && (
@@ -198,6 +200,32 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                         </span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Balance Continuity */}
+                {tx.previousDues !== undefined && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950/40 px-2.5 py-1.5 rounded-lg border border-slate-800/60 flex-wrap">
+                    <span className="text-slate-500 font-medium">Balance:</span>
+                    <span className={tx.previousDues < 0 ? 'text-emerald-400 font-bold' : 'text-slate-300'}>
+                      {tx.previousDues < 0 ? `+ ${formatCurrency(tx.previousDues)} (Adv)` : formatCurrency(tx.previousDues)}
+                    </span>
+                    <span className="text-slate-600">→</span>
+                    <span
+                      className={
+                        (tx.currentDues ?? 0) === 0
+                          ? 'text-emerald-400 font-bold'
+                          : (tx.currentDues ?? 0) < 0
+                          ? 'text-emerald-400 font-bold'
+                          : 'text-amber-400 font-bold'
+                      }
+                    >
+                      {(tx.currentDues ?? 0) === 0
+                        ? '₹ 0.00 (Settled)'
+                        : (tx.currentDues ?? 0) < 0
+                        ? `+ ${formatCurrency(tx.currentDues ?? 0)} (Adv)`
+                        : `${formatCurrency(tx.currentDues ?? 0)} (Due)`}
+                    </span>
                   </div>
                 )}
 
@@ -312,8 +340,10 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                 const hasLinkedPayments = tx.linkedPayments && tx.linkedPayments.length > 0;
                 const isExpanded = expandedOrders[tx.id];
 
+                const advanceCredit = tx.advanceCredit || 0;
                 const paidAmount = tx.paidAmount || 0;
-                const remainingDue = tx.remainingDue !== undefined ? tx.remainingDue : tx.amount;
+                const remainingDue = tx.remainingDue !== undefined ? tx.remainingDue : 0;
+                const totalCovered = Math.min(tx.amount, paidAmount + advanceCredit);
 
                 return (
                   <React.Fragment key={tx.id}>
@@ -372,11 +402,11 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                             <div className="text-[11px] space-y-1">
                               {remainingDue <= 0 ? (
                                 <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3" /> Fully Paid
+                                  <CheckCircle2 className="w-3 h-3" /> {paidAmount >= tx.amount ? 'Fully Paid' : 'Settled (Advance)'}
                                 </span>
-                              ) : paidAmount > 0 ? (
+                              ) : (paidAmount > 0 || advanceCredit > 0) ? (
                                 <span className="text-amber-400 font-semibold flex items-center gap-1">
-                                  <Clock className="w-3 h-3" /> Partial ({formatCurrency(paidAmount)} paid)
+                                  <Clock className="w-3 h-3" /> Partial ({formatCurrency(totalCovered)} covered)
                                 </span>
                               ) : (
                                 <span className="text-slate-400 font-normal">Unpaid Order</span>
@@ -403,6 +433,31 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                                   </span>
                                 </div>
                               )}
+                            </div>
+                          )}
+
+                          {tx.previousDues !== undefined && (
+                            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400">
+                              <span className="text-slate-500">Bal:</span>
+                              <span className={tx.previousDues < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                                {tx.previousDues < 0 ? `+ ${formatCurrency(tx.previousDues)} (Adv)` : formatCurrency(tx.previousDues)}
+                              </span>
+                              <span className="text-slate-600">→</span>
+                              <span
+                                className={
+                                  (tx.currentDues ?? 0) === 0
+                                    ? 'text-emerald-400 font-bold'
+                                    : (tx.currentDues ?? 0) < 0
+                                    ? 'text-emerald-400 font-bold'
+                                    : 'text-amber-400 font-bold'
+                                }
+                              >
+                                {(tx.currentDues ?? 0) === 0
+                                  ? '₹ 0.00'
+                                  : (tx.currentDues ?? 0) < 0
+                                  ? `+ ${formatCurrency(tx.currentDues ?? 0)} (Adv)`
+                                  : `${formatCurrency(tx.currentDues ?? 0)} (Due)`}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -432,9 +487,9 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                       {/* Payments Paid */}
                       <td className="py-3 px-3.5 sm:px-4 text-right align-middle font-bold text-xs sm:text-sm whitespace-nowrap">
                         {!isDelivery ? (
-                          <span className="text-emerald-400">-{formatCurrency(tx.amount)}</span>
+                          <span className="text-emerald-400">{formatCurrency(tx.amount)}</span>
                         ) : (
-                          <span className="text-emerald-400">{formatCurrency(paidAmount)}</span>
+                          <span className="text-emerald-400">{formatCurrency(paidAmount > 0 ? paidAmount : totalCovered)}</span>
                         )}
                       </td>
 

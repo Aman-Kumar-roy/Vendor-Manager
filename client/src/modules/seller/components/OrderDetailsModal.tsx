@@ -62,13 +62,14 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
     }
   };
 
+  const advanceCredit = delivery.advanceCredit || 0;
   const paidAmount = delivery.paidAmount || 0;
-  const remainingDue = delivery.remainingDue !== undefined ? delivery.remainingDue : delivery.amount;
+  const remainingDue = delivery.remainingDue !== undefined ? delivery.remainingDue : 0;
+  const totalCovered = Math.min(delivery.amount, paidAmount + advanceCredit);
   const linkedPayments = delivery.linkedPayments || [];
 
   const tank500 = delivery.tank500 || 0;
   const tank1000 = delivery.tank1000 || 0;
-  const tank2000 = delivery.tank2000 || 0;
 
   return (
     <>
@@ -91,9 +92,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                   <h4 className="text-base font-bold text-white flex items-center gap-2">
                     <span>Delivery Order</span>
                     {remainingDue <= 0 ? (
-                      <Badge variant="emerald">Fully Settled</Badge>
-                    ) : paidAmount > 0 ? (
-                      <Badge variant="amber">Partial Payment</Badge>
+                      <Badge variant="emerald">{paidAmount >= delivery.amount ? 'Fully Settled' : 'Settled via Advance'}</Badge>
+                    ) : (paidAmount > 0 || advanceCredit > 0) ? (
+                      <Badge variant="amber">Partial ({formatCurrency(totalCovered)} covered)</Badge>
                     ) : (
                       <Badge variant="rose">Unpaid</Badge>
                     )}
@@ -103,17 +104,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onAddPaymentToOrder(delivery.id);
-                  }}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-glow transition-all cursor-pointer w-max shrink-0"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Add Payment to Order</span>
-                </button>
+                {remainingDue > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onAddPaymentToOrder(delivery.id);
+                    }}
+                    className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-glow transition-all cursor-pointer w-max shrink-0"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>Add Payment to Order</span>
+                  </button>
+                )}
 
                 {onPrintReceipt && (
                   <button
@@ -163,7 +166,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               <Droplets className="w-4 h-4 text-blue-400" />
               Tanks Delivered Breakdown
             </span>
-            <div className="grid grid-cols-3 gap-3 pt-1 text-center">
+            <div className="grid grid-cols-2 gap-3 pt-1 text-center">
               <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
                 <span className="text-[10px] text-slate-400 block font-semibold uppercase">500 L Tank</span>
                 <span className="text-base font-extrabold text-blue-300 mt-0.5 block">{tank500} Units</span>
@@ -171,10 +174,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
                 <span className="text-[10px] text-slate-400 block font-semibold uppercase">1,000 L Tank</span>
                 <span className="text-base font-extrabold text-blue-300 mt-0.5 block">{tank1000} Units</span>
-              </div>
-              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-[10px] text-slate-400 block font-semibold uppercase">2,000 L Tank</span>
-                <span className="text-base font-extrabold text-blue-300 mt-0.5 block">{tank2000} Units</span>
               </div>
             </div>
           </div>
@@ -192,10 +191,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
             <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Total Payments Paid
+                {paidAmount > 0 ? 'Total Payments Paid' : advanceCredit > 0 ? 'Advance Credit Applied' : 'Total Payments Paid'}
               </span>
               <p className="text-lg font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(paidAmount)}
+                {formatCurrency(paidAmount > 0 ? paidAmount : totalCovered)}
               </p>
             </div>
 
@@ -243,33 +242,47 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
             {linkedPayments.length === 0 ? (
               /* Enhanced Consistent Empty State for Mobile and Web */
-              <div className="bg-slate-950/60 border border-slate-800/90 rounded-2xl p-6 sm:p-7 text-center space-y-3.5 shadow-inner">
-                <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center mx-auto shadow-sm">
-                  <Clock className="w-6 h-6 text-amber-400/80" />
+              remainingDue <= 0 ? (
+                <div className="bg-slate-950/60 border border-emerald-500/30 rounded-2xl p-6 sm:p-7 text-center space-y-3.5 shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <h6 className="text-sm font-bold text-white">Settled via Advance Credit</h6>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      This delivery order of {formatCurrency(delivery.amount)} was fully covered by pre-existing advance credit on the vendor's ledger account.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <h6 className="text-sm font-bold text-white">No Partial Payments Recorded</h6>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                    No payment settlements have been linked to this delivery order yet. Click below to record a partial or full payment.
-                  </p>
+              ) : (
+                <div className="bg-slate-950/60 border border-slate-800/90 rounded-2xl p-6 sm:p-7 text-center space-y-3.5 shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center mx-auto shadow-sm">
+                    <Clock className="w-6 h-6 text-amber-400/80" />
+                  </div>
+                  <div className="space-y-1">
+                    <h6 className="text-sm font-bold text-white">No Partial Payments Recorded</h6>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      No payment settlements have been linked to this delivery order yet. Click below to record a partial or full payment.
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onAddPaymentToOrder(delivery.id);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer shadow-glow"
+                      style={{
+                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                      }}
+                    >
+                      <PlusCircle className="w-4 h-4 text-white" />
+                      <span>Add Payment to Order</span>
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onAddPaymentToOrder(delivery.id);
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer shadow-glow"
-                    style={{
-                      background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                    }}
-                  >
-                    <PlusCircle className="w-4 h-4 text-white" />
-                    <span>Add Payment to Order</span>
-                  </button>
-                </div>
-              </div>
+              )
             ) : (
               /* High Contrast, Touch-Friendly Payments List */
               <div className="space-y-2.5">
@@ -343,7 +356,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                 {remainingDue <= 0 ? (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Order is fully settled! Total {formatCurrency(paidAmount)} received across {linkedPayments.length} payment{linkedPayments.length === 1 ? '' : 's'}.</span>
+                    <span>
+                      {paidAmount >= delivery.amount
+                        ? `Order is fully settled! Total ${formatCurrency(paidAmount)} received across ${linkedPayments.length} payment${linkedPayments.length === 1 ? '' : 's'}.`
+                        : `Order is fully settled! Billed amount ${formatCurrency(delivery.amount)} is covered by advance ledger credit.`}
+                    </span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold">

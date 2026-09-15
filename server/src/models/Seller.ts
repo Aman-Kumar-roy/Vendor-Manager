@@ -21,4 +21,11 @@ const SellerSchema: Schema = new Schema(
   { timestamps: true }
 );
 
+// Performance & Search Indexes
+SellerSchema.index({ createdAt: -1 });
+SellerSchema.index({ name: 1 });
+SellerSchema.index({ phone: 1 });
+SellerSchema.index({ email: 1 });
+SellerSchema.index({ gstNumber: 1 });
+
 export const SellerModel = mongoose.model<ISeller>('Seller', SellerSchema);

@@ -27,9 +27,6 @@ export class ReportController {
               tank1000: {
                 $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank1000', 0] },
               },
-              tank2000: {
-                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank2000', 0] },
-              },
             },
           },
         ]),
@@ -44,7 +41,7 @@ export class ReportController {
             $group: {
               _id: '$sellerId',
               totalDeliveries: { $sum: '$amount' },
-              totalTanks: { $sum: { $add: ['$tank500', '$tank1000', '$tank2000'] } },
+              totalTanks: { $sum: { $add: ['$tank500', '$tank1000'] } },
             },
           },
           { $sort: { totalDeliveries: -1 } },
@@ -81,7 +78,7 @@ export class ReportController {
             $group: {
               _id: '$sellerId',
               totalDeliveries: { $sum: '$amount' },
-              totalTanks: { $sum: { $add: ['$tank500', '$tank1000', '$tank2000'] } },
+              totalTanks: { $sum: { $add: ['$tank500', '$tank1000'] } },
             },
           },
           { $sort: { totalDeliveries: -1 } },
@@ -137,13 +134,13 @@ export class ReportController {
           tankBreakdown: {
             tank500: totalsAgg[0]?.tank500 || 0,
             tank1000: totalsAgg[0]?.tank1000 || 0,
-            tank2000: totalsAgg[0]?.tank2000 || 0,
           },
           topSellers,
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error generating summary report.' });
+      const errMsg = error.message || 'Error generating summary report.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -206,7 +203,6 @@ export class ReportController {
             _id: '$sellerId',
             total500: { $sum: '$tank500' },
             total1000: { $sum: '$tank1000' },
-            total2000: { $sum: '$tank2000' },
           },
         },
         {
@@ -236,8 +232,7 @@ export class ReportController {
             sellerName: { $ifNull: ['$seller.name', 'Vendor Account'] },
             total500: '$total500',
             total1000: '$total1000',
-            total2000: '$total2000',
-            totalOrders: { $add: ['$total500', '$total1000', '$total2000'] },
+            totalOrders: { $add: ['$total500', '$total1000'] },
           },
         },
         { $sort: { totalOrders: -1 } },
@@ -254,7 +249,8 @@ export class ReportController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error generating tank summary report.' });
+      const errMsg = error.message || 'Error generating tank summary report.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 }

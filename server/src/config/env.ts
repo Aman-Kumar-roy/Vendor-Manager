@@ -41,7 +41,7 @@ export function reloadEnvIfNeeded(): void {
           process.env[k] = parsed[k];
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 }
 
@@ -95,4 +95,36 @@ export const env = {
     reloadEnvIfNeeded();
     return (process.env.VITE_COMPANY_ADDRESS || process.env.COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020').trim().replace(/^["']|["']$/g, '');
   },
+  get WHATSAPP_PROVIDER(): string {
+    reloadEnvIfNeeded();
+    return (process.env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
+  },
+  get WHATSAPP_ACCESS_TOKEN(): string {
+    reloadEnvIfNeeded();
+    return (process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+  },
+  get WHATSAPP_PHONE_NUMBER_ID(): string {
+    reloadEnvIfNeeded();
+    return (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID || '').trim().replace(/^["']|["']$/g, '');
+  },
+  get WHATSAPP_BUSINESS_ACCOUNT_ID(): string {
+    reloadEnvIfNeeded();
+    return (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || process.env.META_BUSINESS_ACCOUNT_ID || '').trim().replace(/^["']|["']$/g, '');
+  },
+  get META_ACCESS_TOKEN(): string {
+    return this.WHATSAPP_ACCESS_TOKEN;
+  },
+  get META_PHONE_NUMBER_ID(): string {
+    return this.WHATSAPP_PHONE_NUMBER_ID;
+  },
+  get META_WHATSAPP_NUMBER(): string {
+    reloadEnvIfNeeded();
+    return (process.env.META_WHATSAPP_NUMBER || process.env.WHATSAPP_NUMBER || process.env.VITE_COMPANY_PHONE || process.env.COMPANY_PHONE || '').trim().replace(/^["']|["']$/g, '');
+  },
+  get PUBLIC_URL(): string {
+    reloadEnvIfNeeded();
+    const configured = (process.env.PUBLIC_URL || process.env.API_BASE_URL || process.env.VITE_API_URL || '').trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
+    return configured || `http://localhost:${this.PORT}/api/v1`;
+  },
 };
+

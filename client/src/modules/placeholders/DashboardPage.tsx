@@ -24,7 +24,7 @@ export const DashboardPage: React.FC = () => {
 
   const [summary, setSummary] = useState<SellerSummary>({
     totalSellers: 0, totalDeliveries: 0, totalPaid: 0, totalDues: 0,
-    totalTank500: 0, totalTank1000: 0, totalTank2000: 0, totalTanks: 0,
+    totalTank500: 0, totalTank1000: 0, totalTanks: 0,
   });
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +131,7 @@ export const DashboardPage: React.FC = () => {
 
   const fmt = (v: number) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      .format(v).replace("₹", "₹ ");
+      .format(Math.abs(v || 0)).replace("₹", "₹ ");
 
   const totalPages = paginationMeta.totalPages || 1;
   const showingStart = paginationMeta.total === 0 ? 0 : (paginationMeta.page - 1) * paginationMeta.limit + 1;
@@ -202,7 +202,7 @@ export const DashboardPage: React.FC = () => {
                 {dashboardTitleLine2}
               </span>
             </h2>
-            <p className="text-sm text-slate-300 dark:text-slate-400 mt-3 leading-relaxed">
+            <p className="text-sm text-slate-300 mt-3 leading-relaxed">
               {dashboardSubtitle}
             </p>
 
@@ -255,8 +255,8 @@ export const DashboardPage: React.FC = () => {
               </span>
             </div>
 
-            {/* 3 Metric Columns with Light-to-Dark gradient in matching blue/cyan/indigo hue */}
-            <div className="grid grid-cols-3 gap-2.5 relative z-10">
+            {/* 2 Metric Columns for 500L and 1,000L tanks only */}
+            <div className="grid grid-cols-2 gap-2.5 relative z-10">
               {/* 500 L */}
               <div
                 className="rounded-2xl p-3.5 text-center transition-all duration-200 hover:scale-[1.03]"
@@ -289,24 +289,6 @@ export const DashboardPage: React.FC = () => {
                   {summary.totalTank1000 || 0}
                 </p>
                 <p className="text-[10px] text-cyan-200/60 font-medium mt-1">
-                  units
-                </p>
-              </div>
-
-              {/* 2,000 L */}
-              <div
-                className="rounded-2xl p-3.5 text-center transition-all duration-200 hover:scale-[1.03]"
-                style={{
-                  background: "linear-gradient(180deg, rgba(99, 102, 241, 0.14) 0%, rgba(10, 20, 48, 0.7) 100%)",
-                  border: "1px solid rgba(99, 102, 241, 0.25)",
-                  boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
-                }}
-              >
-                <p className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-wider mb-1">2,000 L</p>
-                <p className="text-2xl sm:text-3xl font-mono font-extrabold text-white tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-                  {summary.totalTank2000 || 0}
-                </p>
-                <p className="text-[10px] text-indigo-200/60 font-medium mt-1">
                   units
                 </p>
               </div>
@@ -374,7 +356,7 @@ export const DashboardPage: React.FC = () => {
                 style={{ background: colorMap[action.color].replace("0.15","0.3"), border: `1px solid ${borderMap[action.color]}` }}>
                 <Icon className="w-5 h-5" />
               </div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{action.label}</p>
+              <p className="text-sm font-bold text-white">{action.label}</p>
               <p className="text-xs text-slate-500 mt-0.5">{action.desc}</p>
               <ArrowRight className={`absolute bottom-4 right-4 w-4 h-4 ${textMap[action.color]} opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200`} />
             </button>
@@ -390,7 +372,7 @@ export const DashboardPage: React.FC = () => {
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Active Vendors & Ledger Directory</h3>
+              <h3 className="text-lg font-bold text-white tracking-tight">Active Vendors & Ledger Directory</h3>
               <p className="text-xs text-slate-500">Click any row to open ledger transactions and print official receipts</p>
             </div>
           </div>
@@ -403,13 +385,13 @@ export const DashboardPage: React.FC = () => {
                 placeholder="Search vendor, phone, GST..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full sm:w-64 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500 transition-all"
+                className="w-full sm:w-64 bg-slate-900/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-all"
               />
             </div>
             <button
               onClick={loadData}
               disabled={loading}
-              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
               title="Refresh Sellers"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-brand-500" : ""}`} />
@@ -418,7 +400,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="glass-panel rounded-2xl p-12 text-center border border-slate-200 dark:border-slate-800">
+          <div className="glass-panel rounded-2xl p-12 text-center border border-slate-800">
             <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-xs text-slate-500">Loading vendor records...</p>
           </div>

@@ -8,6 +8,7 @@ import transactionRoutes from './routes/transactionRoutes';
 import reportRoutes from './routes/reportRoutes';
 import { connectMongoDB } from './config/db';
 import { errorHandler } from './middleware/errorHandler';
+import { TransactionController } from './controllers/transactionController';
 
 const app = express();
 
@@ -60,7 +61,7 @@ app.get('/', (req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/v1/health'], (req, res) => {
   res.status(200).json({
     status: 'OK',
     message: 'Vasudha Polymer VTMS Express MongoDB Server is running.',
@@ -68,11 +69,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Canonical Public Receipt URL alias for browser previews and PDF downloads
+app.get('/receipts/:id.pdf', (req, res, next) => {
+  TransactionController.getTransactionReceiptPdf(req, res).catch(next);
+});
+
 // API v1 Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/sellers', sellerRoutes);
 app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/reports', reportRoutes);
+
 
 // Static client build serving if client/dist exists
 const resolvedClientDist = getClientDistPath();

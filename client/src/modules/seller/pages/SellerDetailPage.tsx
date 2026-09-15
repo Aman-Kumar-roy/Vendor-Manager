@@ -131,7 +131,8 @@ export const SellerDetailPage: React.FC = () => {
       style: "currency",
       currency: "INR",
       minimumFractionDigits: 2,
-    }).format(val).replace("₹", "₹ ");
+      maximumFractionDigits: 2,
+    }).format(Math.abs(val || 0)).replace("₹", "₹ ");
   };
 
   if (loading && !seller) {
@@ -167,8 +168,7 @@ export const SellerDetailPage: React.FC = () => {
   const dues = seller.totalDues;
   const qty500 = seller.tank500 || 0;
   const qty1000 = seller.tank1000 || 0;
-  const qty2000 = seller.tank2000 || 0;
-  const totalTanks = seller.totalTanks ?? (qty500 + qty1000 + qty2000);
+  const totalTanks = seller.totalTanks ?? (qty500 + qty1000);
 
   const handleUpdateSeller = async (sellerId: string, dto: Partial<CreateSellerDto>) => {
     const res = await sellerApi.updateSeller(sellerId, dto);
@@ -204,7 +204,7 @@ export const SellerDetailPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate("/sellers")}
-          className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 hover:border-brand-500/50 transition-all shadow-sm"
+          className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 hover:border-brand-500/50 transition-all shadow-sm"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Sellers Directory</span>
@@ -214,7 +214,7 @@ export const SellerDetailPage: React.FC = () => {
           <button
             onClick={() => fetchSellerDetail(currentPage, pageSize)}
             disabled={loading}
-            className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+            className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
             title="Refresh Ledger"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-brand-500" : ""}`} />
@@ -260,7 +260,7 @@ export const SellerDetailPage: React.FC = () => {
       </div>
 
       {/* Vendor Profile Hero Card */}
-      <div className="glass-panel p-5 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 relative overflow-hidden shadow-card-dark">
+      <div className="glass-panel p-5 sm:p-8 rounded-2xl border border-slate-800 relative overflow-hidden shadow-card-dark">
         <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl" />
 
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative z-10">
@@ -276,16 +276,16 @@ export const SellerDetailPage: React.FC = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                     {seller.name}
                   </h2>
-                  <ShieldCheck className="w-5 h-5 text-brand-500 dark:text-brand-400 shrink-0" />
+                  <ShieldCheck className="w-5 h-5 text-brand-400 shrink-0" />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <span className="text-[11px] text-slate-600 dark:text-slate-400 font-mono tracking-wide font-bold bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
+                  <span className="text-[11px] text-slate-400 font-mono tracking-wide font-bold bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
                     #{seller.id.slice(-6).toUpperCase()}
                   </span>
-                  <span className="text-slate-400 dark:text-slate-600">•</span>
+                  <span className="text-slate-600">•</span>
                   {dues === 0 ? (
                     <Badge variant="emerald" dot>Account Settled</Badge>
                   ) : dues > 0 ? (
@@ -298,28 +298,28 @@ export const SellerDetailPage: React.FC = () => {
             </div>
 
             {/* Contact details */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-2 border-t border-slate-200 dark:border-slate-800/80 text-xs">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-2 border-t border-slate-800/80 text-xs">
               {seller.email && (
-                <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800/60 font-medium break-all">
-                  <Mail className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400 shrink-0" />
+                <span className="flex items-center gap-1.5 bg-slate-900/60 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800/60 font-medium break-all">
+                  <Mail className="w-3.5 h-3.5 text-brand-400 shrink-0" />
                   {seller.email}
                 </span>
               )}
               {seller.phone && (
-                <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800/60 font-medium whitespace-nowrap">
-                  <Phone className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                <span className="flex items-center gap-1.5 bg-slate-900/60 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800/60 font-medium whitespace-nowrap">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   {seller.phone}
                 </span>
               )}
               {seller.gstNumber && (
-                <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800/60 font-medium whitespace-nowrap">
-                  <FileText className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                <span className="flex items-center gap-1.5 bg-slate-900/60 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800/60 font-medium whitespace-nowrap">
+                  <FileText className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   <span className="font-mono font-semibold tracking-wide">GST: {seller.gstNumber}</span>
                 </span>
               )}
               {seller.address && (
-                <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800/60 font-medium">
-                  <MapPin className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                <span className="flex items-center gap-1.5 bg-slate-900/60 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-800/60 font-medium">
+                  <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   {seller.address}
                 </span>
               )}
@@ -354,8 +354,8 @@ export const SellerDetailPage: React.FC = () => {
               </span>
             </div>
 
-            {/* 3 Metric Columns with Light-to-Dark gradient in matching blue/cyan/indigo hue */}
-            <div className="grid grid-cols-3 gap-2.5 relative z-10">
+            {/* 2 Metric Columns for 500L and 1000L tanks only */}
+            <div className="grid grid-cols-2 gap-2.5 relative z-10">
               {/* 500L */}
               <div
                 className="rounded-2xl p-3.5 text-center transition-all duration-200 hover:scale-[1.03]"
@@ -391,24 +391,6 @@ export const SellerDetailPage: React.FC = () => {
                   units
                 </p>
               </div>
-
-              {/* 2,000L */}
-              <div
-                className="rounded-2xl p-3.5 text-center transition-all duration-200 hover:scale-[1.03]"
-                style={{
-                  background: "linear-gradient(180deg, rgba(99, 102, 241, 0.14) 0%, rgba(10, 20, 48, 0.7) 100%)",
-                  border: "1px solid rgba(99, 102, 241, 0.25)",
-                  boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
-                }}
-              >
-                <p className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-wider mb-1">2,000 L</p>
-                <p className="text-2xl sm:text-3xl font-mono font-extrabold text-white tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-                  {qty2000}
-                </p>
-                <p className="text-[10px] text-indigo-200/60 font-medium mt-1">
-                  units
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -431,21 +413,27 @@ export const SellerDetailPage: React.FC = () => {
           accentColor="emerald"
         />
         <StatCard
-          title="Total Net Dues"
-          value={formatCurrency(seller.totalDues)}
-          subtitle="Outstanding balance (₹)"
+          title={seller.totalDues < 0 ? "Advance Credit" : "Total Net Dues"}
+          value={seller.totalDues < 0 ? `+ ${formatCurrency(seller.totalDues)}` : formatCurrency(seller.totalDues)}
+          subtitle={
+            seller.totalDues < 0
+              ? "Pre-paid balance credit (₹)"
+              : seller.totalDues > 0
+              ? "Outstanding balance (₹)"
+              : "All balances cleared"
+          }
           icon={<Wallet className="w-5 h-5" />}
-          accentColor={seller.totalDues > 0 ? "amber" : "brand"}
+          accentColor={seller.totalDues < 0 ? "emerald" : seller.totalDues > 0 ? "amber" : "emerald"}
         />
       </div>
 
       {/* Transactions Ledger */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
             <ReceiptIcon className="w-5 h-5 text-brand-500" />
             <span>Transaction Ledger</span>
-            <span className="text-xs font-bold text-brand-600 dark:text-brand-300 bg-brand-500/10 px-2.5 py-0.5 rounded-full border border-brand-500/20">
+            <span className="text-xs font-bold text-brand-300 bg-brand-500/10 px-2.5 py-0.5 rounded-full border border-brand-500/20">
               {seller.transactions?.length || 0} Records
             </span>
           </h3>
@@ -456,7 +444,7 @@ export const SellerDetailPage: React.FC = () => {
               setInitialTxType('DELIVERY');
               setIsAddTxModalOpen(true);
             }}
-            className="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-bold flex items-center gap-1.5 bg-brand-500/10 px-3 py-1.5 rounded-xl border border-brand-500/20 transition-all hover:bg-brand-500/20 cursor-pointer"
+            className="text-xs text-brand-400 hover:text-brand-300 font-bold flex items-center gap-1.5 bg-brand-500/10 px-3 py-1.5 rounded-xl border border-brand-500/20 transition-all hover:bg-brand-500/20 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Transaction</span>

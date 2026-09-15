@@ -3,28 +3,33 @@ import mongoose from 'mongoose';
 import { SellerModel } from '../models/Seller';
 import { TransactionModel } from '../models/Transaction';
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class SellerController {
   // GET /api/v1/sellers
   public static async getAllSellers(req: Request, res: Response): Promise<void> {
     try {
-      const search = req.query.search ? String(req.query.search).trim() : '';
+      const search = req.query.search ? String(req.query.search).trim().slice(0, 100) : '';
 
       let filter: any = {};
       if (search) {
+        const safeRegex = new RegExp(escapeRegex(search), 'i');
         filter = {
           $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { phone: { $regex: search, $options: 'i' } },
-            { gstNumber: { $regex: search, $options: 'i' } },
+            { name: safeRegex },
+            { phone: safeRegex },
+            { gstNumber: safeRegex },
           ],
         };
       }
 
       const totalSellers = await SellerModel.countDocuments(filter);
 
-      // Pagination
+      // Pagination with safe limits
       const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-      const limit = Math.max(1, parseInt(req.query.limit as string, 10) || 10);
+      const limit = Math.max(1, Math.min(parseInt(req.query.limit as string, 10) || 10, 100));
       const skip = (page - 1) * limit;
       const totalPages = Math.ceil(totalSellers / limit) || 1;
 
@@ -56,9 +61,6 @@ export class SellerController {
                 tank1000: {
                   $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank1000', 0] },
                 },
-                tank2000: {
-                  $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank2000', 0] },
-                },
               },
             },
           ])
@@ -76,8 +78,10 @@ export class SellerController {
         const totalDues = Math.round((totalDeliveries - totalPaid) * 100) / 100;
         const tank500 = t?.tank500 || 0;
         const tank1000 = t?.tank1000 || 0;
-        const tank2000 = t?.tank2000 || 0;
-        const totalTanks = tank500 + tank1000 + tank2000;
+        const totalTanks = tank500 + tank1000;
+
+        const advanceCredit = Math.max(0, -totalDues);
+        const isOverpaid = totalDues < 0;
 
         return {
           id: seller._id.toString(),
@@ -89,9 +93,10 @@ export class SellerController {
           totalDeliveries,
           totalPaid,
           totalDues,
+          advanceCredit,
+          isOverpaid,
           tank500,
           tank1000,
-          tank2000,
           totalTanks,
           createdAt: seller.createdAt,
         };
@@ -115,9 +120,6 @@ export class SellerController {
               tank1000: {
                 $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank1000', 0] },
               },
-              tank2000: {
-                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank2000', 0] },
-              },
             },
           },
         ]),
@@ -129,8 +131,7 @@ export class SellerController {
       const globalDues = Math.round((globalDeliveries - globalPaid) * 100) / 100;
       const globalTank500 = globalTotalsAgg[0]?.tank500 || 0;
       const globalTank1000 = globalTotalsAgg[0]?.tank1000 || 0;
-      const globalTank2000 = globalTotalsAgg[0]?.tank2000 || 0;
-      const globalTotalTanks = globalTank500 + globalTank1000 + globalTank2000;
+      const globalTotalTanks = globalTank500 + globalTank1000;
 
       res.status(200).json({
         success: true,
@@ -151,7 +152,6 @@ export class SellerController {
             totalDues: globalDues,
             totalTank500: globalTank500,
             totalTank1000: globalTank1000,
-            totalTank2000: globalTank2000,
             totalTanks: globalTotalTanks,
           },
         },
@@ -167,52 +167,91 @@ export class SellerController {
       const { id } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        res.status(400).json({ success: false, error: 'Invalid seller ID format.' });
+        res.status(400).json({ success: false, error: 'Invalid seller ID format.', message: 'Invalid seller ID format.' });
         return;
       }
 
       const seller = await SellerModel.findById(id).lean();
       if (!seller) {
-        res.status(404).json({ success: false, error: 'Seller not found.' });
+        res.status(404).json({ success: false, error: 'Seller not found.', message: 'Seller not found.' });
         return;
       }
 
-      const transactions = await TransactionModel.find({ sellerId: seller._id })
-        .sort({ date: -1, createdAt: -1 })
-        .lean();
+      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+      const limit = Math.max(1, Math.min(parseInt(req.query.limit as string, 10) || 10, 100));
+      const skip = (page - 1) * limit;
 
-      let totalDeliveries = 0;
-      let totalPaid = 0;
-      let totalTank500 = 0;
-      let totalTank1000 = 0;
-      let totalTank2000 = 0;
+      // Parallel execution: Lifetime stats aggregation, total count, and database-level paginated slice
+      const [totalsAgg, totalTx, pageTransactions] = await Promise.all([
+        TransactionModel.aggregate([
+          { $match: { sellerId: seller._id } },
+          {
+            $group: {
+              _id: null,
+              totalDeliveries: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$amount', 0] },
+              },
+              totalPaid: {
+                $sum: { $cond: [{ $eq: ['$type', 'PAYMENT'] }, '$amount', 0] },
+              },
+              tank500: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank500', 0] },
+              },
+              tank1000: {
+                $sum: { $cond: [{ $eq: ['$type', 'DELIVERY'] }, '$tank1000', 0] },
+              },
+            },
+          },
+        ]),
+        TransactionModel.countDocuments({ sellerId: seller._id }),
+        TransactionModel.find({ sellerId: seller._id })
+          .sort({ date: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+      ]);
 
-      // Group payments by parentId and map deliveries
+      const totalPages = Math.ceil(totalTx / limit) || 1;
+
+      // Extract delivery IDs and parent IDs only for items on the current page
+      const deliveryIds = pageTransactions
+        .filter((tx) => tx.type === 'DELIVERY')
+        .map((tx) => tx._id);
+      const parentIds = pageTransactions
+        .filter((tx) => tx.type === 'PAYMENT' && tx.parentId)
+        .map((tx) => tx.parentId);
+
+      const [childPayments, parentDeliveries] = await Promise.all([
+        deliveryIds.length > 0
+          ? TransactionModel.find({ parentId: { $in: deliveryIds }, type: 'PAYMENT' }).lean()
+          : Promise.resolve([]),
+        parentIds.length > 0
+          ? TransactionModel.find({ _id: { $in: parentIds }, type: 'DELIVERY' }).lean()
+          : Promise.resolve([]),
+      ]);
+
       const paymentsByParentId = new Map<string, any[]>();
-      const deliveryMap = new Map<string, any>();
-
-      for (const tx of transactions) {
-        const txId = tx._id.toString();
-        if (tx.type === 'DELIVERY') {
-          totalDeliveries += tx.amount;
-          totalTank500 += tx.tank500 || 0;
-          totalTank1000 += tx.tank1000 || 0;
-          totalTank2000 += tx.tank2000 || 0;
-          deliveryMap.set(txId, tx);
-        } else if (tx.type === 'PAYMENT') {
-          totalPaid += tx.amount;
-          if (tx.parentId) {
-            const pid = tx.parentId.toString();
-            if (!paymentsByParentId.has(pid)) {
-              paymentsByParentId.set(pid, []);
-            }
-            paymentsByParentId.get(pid)!.push(tx);
-          }
-        }
+      for (const p of childPayments) {
+        if (!p.parentId) continue;
+        const pid = p.parentId.toString();
+        if (!paymentsByParentId.has(pid)) paymentsByParentId.set(pid, []);
+        paymentsByParentId.get(pid)!.push(p);
       }
 
-      const formattedTransactions = transactions.map((tx) => {
+      const deliveryMap = new Map<string, any>();
+      for (const d of parentDeliveries) {
+        deliveryMap.set(d._id.toString(), d);
+      }
+
+      const formattedTransactions = pageTransactions.map((tx) => {
         const txId = tx._id.toString();
+        const prevDues = tx.previousDues !== undefined && tx.previousDues !== null
+          ? Math.round(Number(tx.previousDues) * 100) / 100
+          : 0;
+        const currDues = Math.round(
+          (prevDues + (tx.type === 'DELIVERY' ? tx.amount : -tx.amount)) * 100
+        ) / 100;
+
         const baseTx: any = {
           id: txId,
           _id: txId,
@@ -234,11 +273,24 @@ export class SellerController {
           parentId: tx.parentId ? tx.parentId.toString() : null,
           type: tx.type,
           amount: Math.round(tx.amount * 100) / 100,
+          previousDues: prevDues,
+          currentDues: currDues,
+          isPreviousAdvance: prevDues < 0,
+          isCurrentAdvance: currDues < 0,
+          previousDuesFormatted: prevDues < 0
+            ? `+ ₹ ${Math.abs(prevDues).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : `₹ ${Math.abs(prevDues).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          currentDuesFormatted: currDues < 0
+            ? `+ ₹ ${Math.abs(currDues).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : `₹ ${Math.abs(currDues).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           date: tx.date,
           note: tx.note || null,
+          tankItems: tx.tankItems || [],
           tank500: tx.tank500 || 0,
           tank1000: tx.tank1000 || 0,
-          tank2000: tx.tank2000 || 0,
+          tank500_layers: tx.tank500_layers || null,
+          tank1000_layers: tx.tank1000_layers || null,
+          tank1000_foam: tx.tank1000_foam || 'none',
           paymentMode: tx.paymentMode || null,
           createdAt: tx.createdAt,
         };
@@ -257,10 +309,12 @@ export class SellerController {
             createdAt: p.createdAt,
           }));
 
+          const advanceCredit = Math.max(0, -prevDues);
           const rawPaid = linkedPayments.reduce((sum, p) => sum + p.amount, 0);
           const paidAmount = Math.round(rawPaid * 100) / 100;
-          const remainingDue = Math.max(0, Math.round((baseTx.amount - paidAmount) * 100) / 100);
+          const remainingDue = Math.max(0, Math.round((baseTx.amount - advanceCredit - paidAmount) * 100) / 100);
 
+          baseTx.advanceCredit = advanceCredit;
           baseTx.paidAmount = paidAmount;
           baseTx.remainingDue = remainingDue;
           baseTx.linkedPayments = linkedPayments;
@@ -285,17 +339,14 @@ export class SellerController {
         return baseTx;
       });
 
-      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-      const limit = Math.max(1, parseInt(req.query.limit as string, 10) || 10);
-      const totalTx = formattedTransactions.length;
-      const totalPages = Math.ceil(totalTx / limit) || 1;
-      const startIndex = (page - 1) * limit;
-      const paginatedTransactions = formattedTransactions.slice(startIndex, startIndex + limit);
-
-      totalDeliveries = Math.round(totalDeliveries * 100) / 100;
-      totalPaid = Math.round(totalPaid * 100) / 100;
+      const totalDeliveries = Math.round((totalsAgg[0]?.totalDeliveries || 0) * 100) / 100;
+      const totalPaid = Math.round((totalsAgg[0]?.totalPaid || 0) * 100) / 100;
       const totalDues = Math.round((totalDeliveries - totalPaid) * 100) / 100;
-      const totalTanks = totalTank500 + totalTank1000 + totalTank2000;
+      const advanceCredit = Math.max(0, -totalDues);
+      const isOverpaid = totalDues < 0;
+      const totalTank500 = totalsAgg[0]?.tank500 || 0;
+      const totalTank1000 = totalsAgg[0]?.tank1000 || 0;
+      const totalTanks = totalTank500 + totalTank1000;
 
       res.status(200).json({
         success: true,
@@ -310,11 +361,12 @@ export class SellerController {
             totalDeliveries,
             totalPaid,
             totalDues,
+            advanceCredit,
+            isOverpaid,
             tank500: totalTank500,
             tank1000: totalTank1000,
-            tank2000: totalTank2000,
             totalTanks,
-            transactions: paginatedTransactions,
+            transactions: formattedTransactions,
             pagination: {
               total: totalTx,
               page,
@@ -328,7 +380,8 @@ export class SellerController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error fetching seller detail.' });
+      const errMsg = error.message || 'Error fetching seller detail.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -422,7 +475,6 @@ export class SellerController {
         totalDues: 0,
         tank500: 0,
         tank1000: 0,
-        tank2000: 0,
         totalTanks: 0,
         createdAt: seller.createdAt,
       };
@@ -449,19 +501,19 @@ export class SellerController {
       const { name, email, phone, address, gstNumber } = req.body;
 
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        res.status(400).json({ success: false, error: 'Invalid seller ID format.' });
+        res.status(400).json({ success: false, error: 'Invalid seller ID format.', message: 'Invalid seller ID format.' });
         return;
       }
 
       const seller = await SellerModel.findById(id);
       if (!seller) {
-        res.status(404).json({ success: false, error: 'Seller account not found.' });
+        res.status(404).json({ success: false, error: 'Seller account not found.', message: 'Seller account not found.' });
         return;
       }
 
       if (name !== undefined) {
         if (typeof name !== 'string' || !name.trim()) {
-          res.status(400).json({ success: false, error: 'Seller name cannot be empty.' });
+          res.status(400).json({ success: false, error: 'Seller name cannot be empty.', message: 'Seller name cannot be empty.' });
           return;
         }
         seller.name = name.trim();
@@ -490,7 +542,8 @@ export class SellerController {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error updating seller.' });
+      const errMsg = error.message || 'Error updating seller.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 
@@ -500,13 +553,13 @@ export class SellerController {
       const { id } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        res.status(400).json({ success: false, error: 'Invalid seller ID format.' });
+        res.status(400).json({ success: false, error: 'Invalid seller ID format.', message: 'Invalid seller ID format.' });
         return;
       }
 
       const seller = await SellerModel.findByIdAndDelete(id);
       if (!seller) {
-        res.status(404).json({ success: false, error: 'Seller account not found.' });
+        res.status(404).json({ success: false, error: 'Seller account not found.', message: 'Seller account not found.' });
         return;
       }
 
@@ -518,7 +571,8 @@ export class SellerController {
         message: 'Seller and associated transactions deleted successfully.',
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'Error deleting seller.' });
+      const errMsg = error.message || 'Error deleting seller.';
+      res.status(500).json({ success: false, error: errMsg, message: errMsg });
     }
   }
 }

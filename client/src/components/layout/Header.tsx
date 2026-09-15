@@ -1,8 +1,7 @@
 import React from "react";
 import { useLocation, Link } from "react-router-dom";
-import { Menu, LogOut, Sun, Moon, ShieldCheck, ChevronRight } from "lucide-react";
+import { Menu, LogOut, ShieldCheck, ChevronRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useTheme } from "../../context/ThemeContext";
 import { navigationConfig } from "../../config/navigation.config";
 
 interface HeaderProps {
@@ -11,7 +10,6 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onMobileMenuOpen }) => {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   const currentNav = navigationConfig.find((item) =>
@@ -60,22 +58,6 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuOpen }) => {
 
       {/* Right: Actions */}
       <div className="flex items-center space-x-2 sm:space-x-3">
-        {/* Theme Toggle Button */}
-        <button
-          onClick={toggleTheme}
-          id="theme-toggle-btn"
-          aria-label="Toggle theme"
-          title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent hover:border-slate-700 transition-all duration-200"
-        >
-          {theme === "dark" ? (
-            <Sun className="w-4.5 h-4.5 text-amber-400 hover:rotate-45 transition-transform" />
-          ) : (
-            <Moon className="w-4.5 h-4.5 text-indigo-400 hover:-rotate-12 transition-transform" />
-          )}
-        </button>
-
-        <div className="h-5 w-px bg-slate-800 hidden sm:block mx-1" />
 
         {/* Profile / User */}
         <div className="flex items-center space-x-3">

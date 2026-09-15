@@ -67,3 +67,9 @@ tmp/
 # Separate Mobile App Repository (Maintained in independent Git repo)
 /app/
 app/
+
+# Messaging and Notification Services (Kept aside for future dedicated PR)
+server/src/services/whatsappService.ts
+*whatsapp*
+*twilio*
+

@@ -38,9 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileCl
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-56 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-40 w-56 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          }`}
         style={{
           background: "var(--bg-card)",
           borderRight: "1px solid var(--border-card)",
@@ -90,10 +89,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileCl
                 to={item.path}
                 onClick={onMobileClose}
                 className={({ isActive }) =>
-                  `relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group ${
-                    isActive
-                      ? "sidebar-nav-active text-brand-400 bg-brand-500/10 font-bold"
-                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
+                  `relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group ${isActive
+                    ? "sidebar-nav-active text-brand-400 bg-brand-500/10 font-bold"
+                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
                   }`
                 }
               >
@@ -101,11 +99,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileCl
                   <>
                     <div className="relative flex items-center space-x-3">
                       <div
-                        className={`p-1.5 rounded-lg transition-all duration-200 ${
-                          isActive
+                        className={`p-1.5 rounded-lg transition-all duration-200 ${isActive
                             ? "bg-brand-500/20 text-brand-400"
                             : "text-slate-500 group-hover:text-slate-200 group-hover:bg-slate-800/80"
-                        }`}
+                          }`}
                       >
                         <Icon className="w-4 h-4" />
                       </div>
@@ -115,13 +112,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileCl
                     <div className="relative flex items-center space-x-1">
                       {item.badge && (
                         <span
-                          className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                            item.badgeColor === "emerald"
+                          className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${item.badgeColor === "emerald"
                               ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
                               : item.badgeColor === "amber"
-                              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                              : "bg-brand-500/15 text-brand-400 border-brand-500/30"
-                          }`}
+                                ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                                : "bg-brand-500/15 text-brand-400 border-brand-500/30"
+                            }`}
                         >
                           {item.badge}
                         </span>

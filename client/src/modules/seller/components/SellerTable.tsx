@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Seller } from "../types";
 import { useAuth } from "../../../context/AuthContext";
 import {
-  Eye, Edit2, Trash2, IndianRupee, ArrowUpRight, ArrowDownLeft, TrendingUp, TrendingDown,
+  Eye, Edit2, Trash2, IndianRupee,
 } from "lucide-react";
 
 interface SellerTableProps {
@@ -18,8 +18,8 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
   const isAdmin = user?.role === 'admin';
 
   const fmt = (v: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 })
-      .format(v).replace("₹", "₹ ");
+    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      .format(Math.abs(v || 0)).replace("₹", "₹ ");
 
   if (sellers.length === 0) {
     return (
@@ -43,14 +43,11 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
           const dues = seller.totalDues;
           const isSettled = dues === 0;
           const isCredit = dues < 0;
-          const isHighDue = dues > 5000;
 
           const duesColor = isSettled
             ? "text-emerald-400"
             : isCredit
             ? "text-brand-400"
-            : isHighDue
-            ? "text-rose-400"
             : "text-amber-400";
 
           return (
@@ -84,12 +81,8 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-400" /> Overpaid
                   </span>
                 ) : (
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shrink-0 ${
-                    isHighDue
-                      ? "bg-rose-500/10 text-rose-300 border-rose-500/25"
-                      : "bg-amber-500/10 text-amber-300 border-amber-500/25"
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isHighDue ? "bg-rose-400" : "bg-amber-400"}`} /> Due
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shrink-0 bg-amber-500/10 text-amber-300 border-amber-500/25">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Due
                   </span>
                 )}
               </div>
@@ -114,15 +107,10 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                    Net Dues
+                    {isCredit ? 'Advance' : 'Net Dues'}
                   </span>
-                  <span className={`font-mono font-extrabold text-xs inline-flex items-center gap-0.5 ${duesColor}`}>
-                    {isCredit ? (
-                      <TrendingUp className="w-3 h-3 shrink-0" />
-                    ) : dues > 0 ? (
-                      <TrendingDown className="w-3 h-3 shrink-0" />
-                    ) : null}
-                    {fmt(dues)}
+                  <span className={`font-mono font-extrabold text-xs ${duesColor}`}>
+                    {isCredit ? `+ ${fmt(dues)}` : fmt(dues)}
                   </span>
                 </div>
               </div>
@@ -180,14 +168,11 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
               const dues = seller.totalDues;
               const isSettled = dues === 0;
               const isCredit  = dues < 0;
-              const isHighDue = dues > 5000;
 
               const duesColor = isSettled
                 ? "text-emerald-400"
                 : isCredit
                 ? "text-brand-400"
-                : isHighDue
-                ? "text-rose-400"
                 : "text-amber-400";
 
               return (
@@ -223,13 +208,8 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
 
                   {/* Net Dues */}
                   <td className="py-4 px-6 text-right font-mono font-extrabold text-sm whitespace-nowrap">
-                    <span className={`inline-flex items-center gap-1 ${duesColor}`}>
-                      {isCredit ? (
-                        <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-                      ) : dues > 0 ? (
-                        <TrendingDown className="w-3.5 h-3.5 shrink-0" />
-                      ) : null}
-                      {fmt(dues)}
+                    <span className={duesColor}>
+                      {isCredit ? `+ ${fmt(dues)}` : fmt(dues)}
                     </span>
                   </td>
 
@@ -244,12 +224,8 @@ export const SellerTable: React.FC<SellerTableProps> = ({ sellers, onDeleteSelle
                         <span className="w-1.5 h-1.5 rounded-full bg-brand-400" /> Overpaid
                       </span>
                     ) : (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-                        isHighDue
-                          ? "bg-rose-500/10 text-rose-300 border-rose-500/25"
-                          : "bg-amber-500/10 text-amber-300 border-amber-500/25"
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${isHighDue ? "bg-rose-400" : "bg-amber-400"}`} /> Due
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-amber-500/10 text-amber-300 border-amber-500/25">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Due
                       </span>
                     )}
                   </td>

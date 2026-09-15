@@ -6,6 +6,7 @@ import {
   Link2, CreditCard, ChevronDown, Check,
 } from 'lucide-react';
 import { CustomDatePicker } from '../../../components/ui/CustomDatePicker';
+import { TankSelector, TankLineItem } from './TankSelector';
 
 const EMPTY_DELIVERIES: Transaction[] = [];
 
@@ -41,10 +42,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
   const [vehicleNumber, setVehicleNumber] = useState('');
 
-  // Standard Tank Capacities: 500L, 1000L, 2000L ONLY
-  const [tank500, setTank500] = useState<string>('');
-  const [tank1000, setTank1000] = useState<string>('');
-  const [tank2000, setTank2000] = useState<string>('');
+  // Strictly tank sizes: 500, 1000 with flexible line items, layers (3-6) & foam matching app flow
+  const [tankLineItems, setTankLineItems] = useState<TankLineItem[]>([
+    { id: '1', size: 500, quantity: 1, layers: 4, foam: 'none' },
+  ]);
 
   const [amountError, setAmountError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
@@ -72,9 +73,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setNote('');
       setPaymentMode('CASH');
       setVehicleNumber('');
-      setTank500('');
-      setTank1000('');
-      setTank2000('');
+      setTankLineItems([{ id: '1', size: 500, quantity: 1, layers: 4, foam: 'none' }]);
       setAmountError(null);
       setDateError(null);
       setError(null);
@@ -93,10 +92,6 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setError(null);
     if (newType === 'DELIVERY') {
       setParentId('');
-    } else {
-      setTank500('');
-      setTank1000('');
-      setTank2000('');
     }
   };
 
@@ -117,6 +112,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   // Filter only DELIVERY transactions for linking payments
   const deliveryOrders = deliveries.filter((t) => String(t.type).toUpperCase() === 'DELIVERY');
   const selectedDelivery = deliveryOrders.find((d) => d.id === parentId);
+
+  const total500 = tankLineItems
+    .filter((t) => t.size === 500)
+    .reduce((acc, t) => acc + (t.quantity || 0), 0);
+  const total1000 = tankLineItems
+    .filter((t) => t.size === 1000)
+    .reduce((acc, t) => acc + (t.quantity || 0), 0);
+  const totalUnits = total500 + total1000;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +144,15 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const formattedItems = tankLineItems
+        .filter((t) => (t.quantity || 0) > 0)
+        .map((t) => ({
+          size: t.size,
+          quantity: t.quantity,
+          layers: t.layers,
+          foam: t.size === 1000 ? t.foam : ('none' as const),
+        }));
+
       await onSubmit({
         sellerId,
         parentId: type === 'PAYMENT' && parentId ? parentId : undefined,
@@ -148,9 +160,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         amount: numAmount,
         date: date ? new Date(date).toISOString() : undefined,
         note: note.trim() || undefined,
-        tank500: type === 'DELIVERY' ? parseInt(tank500 || '0', 10) || 0 : 0,
-        tank1000: type === 'DELIVERY' ? parseInt(tank1000 || '0', 10) || 0 : 0,
-        tank2000: type === 'DELIVERY' ? parseInt(tank2000 || '0', 10) || 0 : 0,
+        tank500: type === 'DELIVERY' ? total500 : 0,
+        tank1000: type === 'DELIVERY' ? total1000 : 0,
+        tank500_layers: type === 'DELIVERY' && total500 > 0 ? (formattedItems.find(i => i.size === 500)?.layers || 4) : undefined,
+        tank1000_layers: type === 'DELIVERY' && total1000 > 0 ? (formattedItems.find(i => i.size === 1000)?.layers || 4) : undefined,
+        tank1000_foam: type === 'DELIVERY' && total1000 > 0 ? (formattedItems.find(i => i.size === 1000)?.foam || 'none') : undefined,
+        tankItems: type === 'DELIVERY' && formattedItems.length > 0 ? formattedItems : undefined,
         paymentMode: type === 'PAYMENT' ? paymentMode : undefined,
         vehicleNumber: type === 'DELIVERY' && vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : undefined,
       });
@@ -159,9 +174,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setNote('');
       setParentId('');
       setType('DELIVERY');
-      setTank500('');
-      setTank1000('');
-      setTank2000('');
+      setTankLineItems([{ id: '1', size: 500, quantity: 1, layers: 4, foam: 'none' }]);
       setVehicleNumber('');
       setPaymentMode('CASH');
       setAmountError(null);
@@ -194,7 +207,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -212,14 +225,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     >
       <form id="add-transaction-form" onSubmit={handleSubmit} noValidate className="space-y-4 pb-16 sm:pb-6">
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-300 text-xs font-medium">
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
             {error}
           </div>
         )}
 
         {/* Transaction Type Selector Pills */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
             Transaction Type <span className="text-rose-500">*</span>
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -227,11 +240,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               type="button"
               onClick={() => handleSelectType('DELIVERY')}
               className={`flex items-center justify-center space-x-2 p-3.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${type === 'DELIVERY'
-                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-700 dark:text-indigo-300 shadow-sm ring-1 ring-indigo-500/30'
-                : 'bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-300 shadow-sm ring-1 ring-indigo-500/30'
+                : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
                 }`}
             >
-              <ArrowUpRight className="w-4 h-4 text-indigo-500 shrink-0" />
+              <ArrowUpRight className="w-4 h-4 text-indigo-400 shrink-0" />
               <span>DELIVERY (Goods Delivered)</span>
             </button>
 
@@ -239,67 +252,34 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               type="button"
               onClick={() => handleSelectType('PAYMENT')}
               className={`flex items-center justify-center space-x-2 p-3.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${type === 'PAYMENT'
-                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-sm ring-1 ring-emerald-500/30'
-                : 'bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300 shadow-sm ring-1 ring-emerald-500/30'
+                : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
                 }`}
             >
-              <ArrowDownLeft className="w-4 h-4 text-emerald-500 shrink-0" />
+              <ArrowDownLeft className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>PAYMENT (Paid / Settled)</span>
             </button>
           </div>
-        </div>
-
-        {/* ── Tank Size Inputs (500L, 1000L, 2000L ONLY) ── */}
+        </div>        {/* ── Tank Variants & Line Items (Strictly 500L & 1000L) ── */}
         {type === 'DELIVERY' && (
-          <div className="animate-fade-in space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Tank Quantities (Units)
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                  500L Tanks
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={tank500}
-                  onChange={(e) => setTank500(e.target.value)}
-                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  placeholder="0"
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+          <div className="animate-fade-in space-y-3">
+            <TankSelector
+              items={tankLineItems}
+              onChangeItems={setTankLineItems}
+            />
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                  1,000L Tanks
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={tank1000}
-                  onChange={(e) => setTank1000(e.target.value)}
-                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  placeholder="0"
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                  2,000L Tanks
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={tank2000}
-                  onChange={(e) => setTank2000(e.target.value)}
-                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  placeholder="0"
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
+            {/* Vehicle Number Input for Delivery */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                Vehicle / Transport Number (Optional)
+              </label>
+              <input
+                type="text"
+                value={vehicleNumber}
+                onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+                placeholder="e.g. DL 01 AB 1234"
+                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 uppercase transition-colors"
+              />
             </div>
           </div>
         )}
@@ -307,9 +287,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         {/* Payment Mode Selector (PAYMENT only) */}
         {type === 'PAYMENT' && (
           <div className="animate-fade-in space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
               <span className="flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-emerald-500" />
+                <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
                 Payment Mode
               </span>
             </label>
@@ -320,8 +300,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   type="button"
                   onClick={() => setPaymentMode(mode)}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${paymentMode === mode
-                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30'
-                    : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/30'
+                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700'
                     }`}
                 >
                   {mode.replace('_', ' ')}
@@ -368,7 +348,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   )}
                 </div>
                 <ChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${
+                  className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
                     isLinkDropdownOpen ? 'rotate-180 text-brand-400' : ''
                   }`}
                 />
@@ -448,7 +428,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
         {/* Amount Input */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
             Amount (₹) <span className="text-rose-500">*</span>
           </label>
           <div className="relative">
@@ -466,10 +446,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               }}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
               placeholder="0.00"
-              className={`w-full bg-white dark:bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+              className={`w-full bg-slate-950/80 border rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                 amountError
                   ? 'border-rose-500 focus:border-rose-500'
-                  : 'border-slate-200 dark:border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500'
+                  : 'border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500'
               }`}
             />
           </div>
@@ -480,7 +460,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
         {/* Date Input */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
             Transaction Date <span className="text-rose-500">*</span>
           </label>
           <CustomDatePicker
@@ -498,23 +478,77 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
         {/* Note / Memo Input */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-            Reference / Note (Optional)
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+              Reference / Note (Optional)
+            </label>
+            <span className="text-[10px] text-slate-400 font-mono">{note.length}/500</span>
+          </div>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <div className="absolute top-3 left-0 pl-3.5 flex items-start pointer-events-none text-slate-400">
               <FileText className="w-4 h-4" />
             </div>
-            <input
-              type="text"
+            <textarea
+              rows={3}
+              maxLength={500}
               value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. Delivery Challan #DC-902, 500L x 5"
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              onChange={(e) => setNote(e.target.value.slice(0, 500))}
+              placeholder="e.g. Delivery Challan #DC-902, dispatch notes, payment remarks..."
+              className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 resize-none"
             />
+          </div>
+        </div>
+
+        {/* Pre-Submission Live Summary Card */}
+        <div className="bg-slate-900/90 border border-slate-800/90 rounded-xl p-3.5 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span>Transaction Summary</span>
+            <span className={type === 'DELIVERY' ? 'text-indigo-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+              {type === 'DELIVERY' ? 'Goods Delivery' : 'Payment Settlement'}
+            </span>
+          </div>
+
+          <div className="space-y-1 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Vendor:</span>
+              <span className="font-bold text-white truncate max-w-[200px]">{sellerName}</span>
+            </div>
+
+            {type === 'DELIVERY' && totalUnits > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 pt-1 border-t border-slate-800/60">
+                <span className="text-slate-400 shrink-0">Tanks Spec:</span>
+                <div className="font-mono text-right text-sky-300 font-bold flex flex-wrap justify-end gap-1.5 break-words max-w-full">
+                  {tankLineItems
+                    .filter((t) => (t.quantity || 0) > 0)
+                    .map((t, i) => (
+                      <span
+                        key={i}
+                        className="px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[11px]"
+                      >
+                        {t.quantity}× {t.size}L ({t.layers}L{t.size === 1000 && t.foam !== 'none' ? `, ${t.foam}` : ''})
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {type === 'DELIVERY' && totalUnits > 0 && (
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-slate-400">Total Units:</span>
+                <span className="font-mono font-extrabold text-sky-400">{totalUnits} {totalUnits === 1 ? 'Unit' : 'Units'}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-1.5 border-t border-slate-800 text-sm">
+              <span className="font-bold text-slate-300">Total Amount:</span>
+              <span className="font-mono font-extrabold text-white">
+                {parseFloat(amount) > 0 ? formatCurrency(parseFloat(amount)) : '₹ 0.00'}
+              </span>
+            </div>
           </div>
         </div>
       </form>
     </Modal>
   );
 };
+

@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 
 const formatCurrency = (val: number = 0) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 })
-    .format(val)
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .format(Math.abs(val || 0))
     .replace("₹", "₹ ");
 
 const formatDate = (dateStr: string) => {
@@ -330,7 +330,7 @@ export const ReceiptsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-800/60 text-sm">
                 {transactions.map((tx) => {
                   const isDelivery = String(tx.type).toUpperCase() === "DELIVERY";
-                  const totalTanks = (tx.tank500 || 0) + (tx.tank1000 || 0) + (tx.tank2000 || 0);
+                  const totalTanks = (tx.tank500 || 0) + (tx.tank1000 || 0);
 
                   return (
                     <tr
@@ -376,11 +376,6 @@ export const ReceiptsPage: React.FC = () => {
                               {tx.tank1000 ? (
                                 <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300 border border-slate-700">
                                   {tx.tank1000} × 1000L
-                                </span>
-                              ) : null}
-                              {tx.tank2000 ? (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300 border border-slate-700">
-                                  {tx.tank2000} × 2000L
                                 </span>
                               ) : null}
                             </div>

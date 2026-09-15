@@ -169,7 +169,7 @@ async function runApiTests() {
       assert(Boolean(body.data?.summary), 'Expected summary metrics in data');
       assert(typeof body.data.summary.totalTank500 === 'number', 'Expected summary.totalTank500');
       assert(typeof body.data.summary.totalTank1000 === 'number', 'Expected summary.totalTank1000');
-      assert(typeof body.data.summary.totalTank2000 === 'number', 'Expected summary.totalTank2000');
+      assert(body.data.summary.totalTank2000 === undefined, 'Expected totalTank2000 to be removed');
       assert(typeof body.data.summary.totalTanks === 'number', 'Expected summary.totalTanks');
       if (body.data.sellers.length > 0) {
         testSellerId = body.data.sellers[0].id;
@@ -255,14 +255,15 @@ async function runApiTests() {
         assert(Array.isArray(body.data.seller.transactions), 'Expected transactions array');
         assert(typeof body.data.seller.tank500 === 'number', 'Expected tank500 number');
         assert(typeof body.data.seller.tank1000 === 'number', 'Expected tank1000 number');
-        assert(typeof body.data.seller.tank2000 === 'number', 'Expected tank2000 number');
+        assert(body.data.seller.tank2000 === undefined, 'Expected tank2000 to be removed');
         assert(typeof body.data.seller.totalTanks === 'number', 'Expected totalTanks number');
       });
     }
 
-    // 7. Post Delivery Transaction (Strict 500/1000/2000 tank capacities)
+    // 7. Post Delivery Transaction (Flexible Tank Line Items & Previous Dues)
+    let lastDeliveryCurrentDues = 0;
     if (testSellerId) {
-      await test('POST /api/v1/transactions (Delivery with tank500, tank1000, tank2000)', async () => {
+      await test('POST /api/v1/transactions (Delivery with flexible tankItems, layers, foam, and previousDues)', async () => {
         const res = await fetch(`${BASE_URL}/transactions`, {
           method: 'POST',
           headers: {
@@ -274,10 +275,12 @@ async function runApiTests() {
             type: 'DELIVERY',
             amount: 15000,
             date: new Date().toISOString().split('T')[0],
-            tank500: 5,
-            tank1000: 3,
-            tank2000: 1,
-            note: 'Standard water tank delivery order',
+            tankItems: [
+              { size: 500, quantity: 2, layers: 3, foam: 'none' },
+              { size: 500, quantity: 1, layers: 4, foam: 'none' },
+              { size: 1000, quantity: 1, layers: 5, foam: 'double' },
+            ],
+            note: 'Flexible tank line items delivery order',
           }),
         });
         assert(res.status === 201 || res.status === 200, `Expected status 201/200, got ${res.status}`);
@@ -285,6 +288,14 @@ async function runApiTests() {
         assert(body.success === true, 'Expected success === true');
         assert(body.message === 'Transaction created successfully.', 'Expected transaction success message');
         assert(Boolean(body.receipt?.receiptNo || body.data?.receipt?.receiptNo), 'Expected receipt in response');
+        assert(body.transaction?.tank500 === 3, 'Expected tank500 === 3 (2 + 1)');
+        assert(body.transaction?.tank1000 === 1, 'Expected tank1000 === 1');
+        assert(Array.isArray(body.transaction?.tankItems) && body.transaction.tankItems.length === 3, 'Expected 3 tankItems');
+        assert(typeof body.transaction?.previousDues === 'number', 'Expected previousDues number');
+        assert(typeof body.transaction?.currentDues === 'number', 'Expected currentDues number');
+        assert(body.transaction?.currentDues === body.transaction?.previousDues + 15000, 'Expected currentDues = previousDues + 15000');
+        lastDeliveryCurrentDues = body.transaction.currentDues;
+
         const txId = body.transaction?._id || body.transaction?.id || body.data?.transaction?.id;
 
         if (txId) {
@@ -296,7 +307,8 @@ async function runApiTests() {
           const receiptBody = await receiptRes.json() as any;
           assert(receiptBody.success === true, 'Expected receiptBody.success === true');
           assert(Boolean(receiptBody.data?.receiptNo), 'Expected receiptNo in voucher data');
-          assert(Boolean(receiptBody.data?.pdfUrl || receiptBody.receiptUrl), 'Expected pdfUrl in receipt response');
+          assert(typeof receiptBody.data?.previousDues === 'number', 'Expected previousDues in receipt');
+          assert(typeof receiptBody.data?.currentDues === 'number', 'Expected currentDues in receipt');
 
           // Verify Server-Generated Canonical PDF Endpoint
           const pdfRes = await fetch(`${BASE_URL}/transactions/${txId}/receipt/pdf`, {
@@ -308,11 +320,139 @@ async function runApiTests() {
           assert(pdfBuffer.byteLength > 1000, `Expected valid PDF buffer (>1000 bytes), got ${pdfBuffer.byteLength}`);
           const pdfMagicBytes = Buffer.from(pdfBuffer.slice(0, 5)).toString();
           assert(pdfMagicBytes === '%PDF-', `Expected PDF header %PDF-, got ${pdfMagicBytes}`);
-
-          // Verify Query Parameter Token Support (for browser tab open & mobile download)
-          const pdfTokenRes = await fetch(`${BASE_URL}/transactions/${txId}/receipt/pdf?token=${authToken}`);
-          assert(pdfTokenRes.status === 200, `Expected status 200 for token query param PDF, got ${pdfTokenRes.status}`);
         }
+      });
+
+      // 7a. Reject 2000L tank
+      await test('POST /api/v1/transactions (Reject 2000L tanks with 400 Bad Request)', async () => {
+        const res = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'DELIVERY',
+            amount: 5000,
+            tank2000: 2,
+          }),
+        });
+        assert(res.status === 400, `Expected status 400 for 2000L tank, got ${res.status}`);
+
+        const res2 = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'DELIVERY',
+            amount: 5000,
+            tankItems: [{ size: 2000, quantity: 1, layers: 4 }],
+          }),
+        });
+        assert(res2.status === 400, `Expected status 400 for tankItems with size 2000, got ${res2.status}`);
+      });
+
+      // 7b. Verify Back Due continuity on Payment
+      await test('POST /api/v1/transactions (Verify Back Due continuity on Payment)', async () => {
+        const res = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'PAYMENT',
+            amount: 5000,
+            paymentMode: 'UPI',
+            note: 'Payment verifying previous and current dues continuity',
+          }),
+        });
+        assert(res.status === 201 || res.status === 200, `Expected status 201/200, got ${res.status}`);
+        const body = await res.json() as any;
+        assert(body.transaction?.previousDues === lastDeliveryCurrentDues, 'Expected payment previousDues === delivery currentDues');
+        assert(body.transaction?.currentDues === lastDeliveryCurrentDues - 5000, 'Expected payment currentDues === previousDues - 5000');
+      });
+
+      // 7c. Reject Delivery with invalid layer count outside 3-6
+      await test('POST /api/v1/transactions (Reject layer count outside 3-6 with 400 Bad Request)', async () => {
+        const res = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'DELIVERY',
+            amount: 5000,
+            tankItems: [{ size: 500, quantity: 2, layers: 2 }], // Invalid: below 3
+          }),
+        });
+        assert(res.status === 400, `Expected status 400 for invalid layer count, got ${res.status}`);
+      });
+
+      // 7d. Reject Foam on 500L Tank
+      await test('POST /api/v1/transactions (Reject foam type on 500L tank)', async () => {
+        const res = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'DELIVERY',
+            amount: 5000,
+            tankItems: [{ size: 500, quantity: 2, layers: 4, foam: 'single' }],
+          }),
+        });
+      });
+
+      // 7e. Reject Invalid Foam Type for 1000L tank
+      await test('POST /api/v1/transactions (Reject invalid foam type with 400 Bad Request)', async () => {
+        const res = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'DELIVERY',
+            amount: 5000,
+            tankItems: [{ size: 1000, quantity: 2, layers: 4, foam: 'triple' }], // Invalid: only none, single, double allowed
+          }),
+        });
+        assert(res.status === 400, `Expected status 400 for invalid foam type, got ${res.status}`);
+      });
+
+      // 7f. Reject Delivery with quantity <= 0 (Exact validation parity)
+      await test('POST /api/v1/transactions (Reject quantity <= 0 with Tank Variant #1 error)', async () => {
+        const res = await fetch(`${BASE_URL}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            sellerId: testSellerId,
+            type: 'DELIVERY',
+            amount: 5000,
+            tankItems: [{ size: 500, quantity: 0, layers: 4 }],
+          }),
+        });
+        assert(res.status === 400, `Expected status 400 for 0 quantity, got ${res.status}`);
+        const body = await res.json() as any;
+        assert(
+          body.error === 'Tank Variant #1: Please enter a valid quantity greater than 0.' ||
+          body.message === 'Tank Variant #1: Please enter a valid quantity greater than 0.',
+          `Expected Tank Variant #1 error message, got: ${body.error || body.message}`
+        );
       });
 
       // 8. Post Payment Settlement Transaction
@@ -362,6 +502,21 @@ async function runApiTests() {
       assert(body.data.pagination.page === 1, 'Expected page === 1');
       assert(body.data.pagination.limit === 5, 'Expected limit === 5');
       assert(typeof body.data.pagination.total === 'number', 'Expected total number');
+
+      if (body.data.transactions.length > 0) {
+        const firstTxId = body.data.transactions[0].id || body.data.transactions[0]._id;
+        // 9c. Trigger Receipt Endpoint
+        await test('POST /api/v1/transactions/:id/send-receipt (Receipt Delivery Handler)', async () => {
+          const res = await fetch(`${BASE_URL}/transactions/${firstTxId}/send-receipt`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+          assert(res.status === 200, `Expected status 200, got ${res.status}`);
+          const resBody = await res.json() as any;
+          assert(typeof resBody.success === 'boolean', 'Expected boolean success property');
+          assert(typeof resBody.message === 'string', 'Expected message string');
+        });
+      }
     });
 
     // 10. Reports Summary

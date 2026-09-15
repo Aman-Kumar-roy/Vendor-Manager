@@ -205,7 +205,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
 
                 {/* Balance Continuity */}
                 {tx.previousDues !== undefined && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950/40 px-2.5 py-1.5 rounded-lg border border-slate-800/60 flex-wrap">
+                  <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950/50 px-2.5 py-1.5 rounded-lg border border-slate-800/80 whitespace-nowrap overflow-x-auto max-w-full">
                     <span className="text-slate-500 font-medium">Balance:</span>
                     <span className={tx.previousDues < 0 ? 'text-emerald-400 font-bold' : 'text-slate-300'}>
                       {tx.previousDues < 0 ? `+ ${formatCurrency(tx.previousDues)} (Adv)` : formatCurrency(tx.previousDues)}
@@ -322,12 +322,12 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
 
         {/* ── Desktop Table View (>= md) ── */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[720px]">
+          <table className="w-full text-left border-collapse min-w-[880px]">
             <thead>
               <tr className="bg-slate-900/90 border-b border-slate-800/80 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 <th className="py-3 px-3.5 sm:px-4 align-middle whitespace-nowrap">Date</th>
-                <th className="py-3 px-3.5 sm:px-4 align-middle min-w-[200px]">Type & Details</th>
-                <th className="py-3 px-3.5 sm:px-4 align-middle">Reference / Note</th>
+                <th className="py-3 px-3.5 sm:px-4 align-middle min-w-[240px]">Type & Details</th>
+                <th className="py-3 px-3.5 sm:px-4 align-middle min-w-[140px]">Reference / Note</th>
                 <th className="py-3 px-3.5 sm:px-4 text-right align-middle whitespace-nowrap">Delivery Bill</th>
                 <th className="py-3 px-3.5 sm:px-4 text-right align-middle whitespace-nowrap">Payments Paid</th>
                 <th className="py-3 px-3.5 sm:px-4 text-right align-middle whitespace-nowrap">Order Due</th>
@@ -437,12 +437,12 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                           )}
 
                           {tx.previousDues !== undefined && (
-                            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400">
-                              <span className="text-slate-500">Bal:</span>
-                              <span className={tx.previousDues < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                            <div className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-md bg-slate-950/60 border border-slate-800/80 text-[10px] text-slate-400 whitespace-nowrap w-fit">
+                              <span className="text-slate-500 font-medium">Bal:</span>
+                              <span className={tx.previousDues < 0 ? 'text-emerald-400 font-bold' : 'text-slate-300'}>
                                 {tx.previousDues < 0 ? `+ ${formatCurrency(tx.previousDues)} (Adv)` : formatCurrency(tx.previousDues)}
                               </span>
-                              <span className="text-slate-600">→</span>
+                              <span className="text-slate-600 font-bold">→</span>
                               <span
                                 className={
                                   (tx.currentDues ?? 0) === 0

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v1.3.0] - 2026-09-16
 
 ### Added
+- **In-Context Transaction Editing (Web Admin)**:
+  - Added dedicated `EditTransactionModal` for Admin users allowing real-time modification of delivery line items (`500L`/`1000L`), layers (3-6), foam type, payment amounts, transaction dates, and reference notes.
+  - Integrated amber edit action button into `TransactionTable` across both desktop and mobile card views with instant in-place ledger revalidation.
 - **Flexible Tank Line Items & Layer/Foam Support**:
   - Deliveries support dynamic line items via `tankItems: [{ size: 500 | 1000, quantity, layers: 3-6, foam?: 'none' | 'single' | 'double' }]`.
   - Enforced 3 to 6 layers per tank item; foam option strictly available for 1000L tanks.
@@ -25,9 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unified glassmorphic dark theme (`bg-slate-950`, `bg-slate-900/80`, `border-slate-800`) across all web client views, modals, and tables.
   - Enhanced contrast and yellow/amber dues styling (`text-amber-400`).
   - Multiline reference notes with live character counter (0/500).
-- **Environment & Receipt Parity**:
+- **Zero-Cache Architecture & Direct Environment Resolution**:
+  - Removed server in-memory PDF caching (`pdfCache`) in favor of 100% live on-demand vector PDF rendering directly from database records and `.env` credentials.
+  - Disabled Express `etag` generation and enforced global `no-store, no-cache, must-revalidate` HTTP headers on all API endpoints and PDF streams.
+  - Cleaned server environment getters in `server/src/config/env.ts` to strictly read direct `process.env` keys without fallback chains.
   - Server-authoritative company branding dynamically loaded from root `.env` and rendered consistently across web preview, mobile preview, and vector PDF downloads.
-  - Clean separation: Root `.env` for server & web dashboard, and dedicated `app/.env` for React Native mobile application.
 - **Automated Verification**:
   - Expanded automated test suite (`npm run test:api`) with 27/27 passed test cases.
 

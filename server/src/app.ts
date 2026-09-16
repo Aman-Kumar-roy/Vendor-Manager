@@ -12,8 +12,18 @@ import { TransactionController } from './controllers/transactionController';
 
 const app = express();
 
+app.set('etag', false);
 app.use(cors());
 app.use(express.json());
+
+// Disable all browser and proxy caching for live accuracy
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
 
 // Auto-ensure MongoDB connection for serverless (Vercel) & traditional containers (Railway)
 app.use(async (req, res, next) => {

@@ -642,7 +642,9 @@ export class TransactionController {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="Receipt-${receiptNo}.pdf"`);
       res.setHeader('Content-Length', pdfBuffer.length);
-      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.status(200).send(pdfBuffer);
     } catch (error: any) {
       const errMsg = error.message || 'Error generating receipt PDF.';

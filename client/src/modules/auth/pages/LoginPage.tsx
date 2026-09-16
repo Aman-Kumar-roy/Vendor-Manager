@@ -11,7 +11,7 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const companyName = import.meta.env.VITE_COMPANY_NAME || "Vasudha Polymer";
+  const companyName = import.meta.env.VITE_COMPANY_NAME || "";
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ export const LoginPage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {companyName} Admin
+              {companyName ? `${companyName} Admin` : "Admin Login"}
             </h2>
             <p className="text-xs text-slate-400 font-medium mt-1">
               Vendor & Transaction Operations Hub

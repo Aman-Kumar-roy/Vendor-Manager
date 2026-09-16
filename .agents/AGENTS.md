@@ -95,8 +95,8 @@
   - Tanks delivered are strictly limited to `500L` and `1000L` (`tank500`, `tank1000`).
   - Canonical PDF receipts include Previous Dues and Closing Dues in the settlement table.
   - Dynamic currency formatting is locked to exact paisa precision (`Rs. XX,XXX.00`).
-- **Cloud & Container-Safe Caching**:
-  - Utilizes an in-memory buffer cache keyed by `transactionId + updatedAt` with automatic invalidation on updates/deletes, delivering sub-millisecond response on repeated downloads with zero disk dependencies (100% safe for ephemeral cloud/Railway containers).
+- **Live Dynamic Rendering (Zero Cache)**:
+  - Generates fresh canonical vector PDFs on-the-fly directly from live transaction and `.env` credentials with zero in-memory or HTTP caching, ensuring any update reflects immediately without stale cache.
 - **Client Consumption**:
   - **Web (`TransactionReceipt.tsx`)**: "Download PDF" and "Print / PDF" buttons directly open or download the server-generated PDF.
   - **Mobile (`ReceiptModal.tsx`)**: Completely removed client-side HTML templates. Calls `downloadReceiptPdfApi` to fetch the server PDF, then uses `expo-print` (`Print.printAsync({ uri })`) and `expo-sharing` (`Sharing.shareAsync(uri)`). Web Receipt = Mobile Receipt = Same Server PDF.

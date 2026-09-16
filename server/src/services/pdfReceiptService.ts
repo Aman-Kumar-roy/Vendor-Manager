@@ -43,16 +43,6 @@ export interface SellerDataInput {
   gstNumber?: string | null;
 }
 
-interface CacheEntry {
-  buffer: Buffer;
-  cachedAt: number;
-}
-
-// In-memory cache keyed by transaction ID + updated timestamp
-// Safe for Railway/ephemeral container deployments, sub-millisecond response on repeated requests
-const pdfCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-
 export class PdfReceiptService {
   /**
    * Resolve logo file path across various runtime environments (local, dist, container)
@@ -129,21 +119,10 @@ export class PdfReceiptService {
     const receiptNo = `RCP-${txId.slice(-8).toUpperCase()}`;
 
     // Company credentials from live .env / env config
-    const companyName = (env.COMPANY_NAME || 'Vasudha Polymer').toUpperCase();
-    const companyAddress = env.COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020';
-    const companyPhone = env.COMPANY_PHONE || '+91 98765 43210';
-    const companyGst = env.COMPANY_GST || '07AAAAA0000A1Z5';
-
-    const updateTime = transaction.updatedAt ? new Date(transaction.updatedAt).getTime() : 0;
-    const prevDuesKey = transaction.previousDues !== undefined ? transaction.previousDues : 'default';
-    const currDuesKey = transaction.currentDues !== undefined ? transaction.currentDues : 'default';
-    const cacheKey = `${txId}_${updateTime}_${companyName}_${companyGst}_${includeDues}_${prevDuesKey}_${currDuesKey}`;
-
-    // Return from cache if valid
-    const cached = pdfCache.get(cacheKey);
-    if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
-      return cached.buffer;
-    }
+    const companyName = (env.COMPANY_NAME || '').toUpperCase();
+    const companyAddress = env.COMPANY_ADDRESS || '';
+    const companyPhone = env.COMPANY_PHONE || '';
+    const companyGst = env.COMPANY_GST || '';
 
     // Vendor details
     const vendorName = seller?.name || 'Valued Vendor';
@@ -200,13 +179,17 @@ export class PdfReceiptService {
       }
     }
 
+    const previousDues = Number(transaction.previousDues) || 0;
+    const txAmount = Number(transaction.amount) || 0;
+    const currentDues = Number(transaction.currentDues) || 0;
+
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
         margin: 36,
         info: {
-          Title: `Receipt-${receiptNo}`,
-          Author: companyName,
+          Title: `Receipt ${receiptNo}`,
+          Author: `${companyName} VTMS`,
           Subject: isDelivery ? 'Delivery Receipt' : 'Payment Receipt',
           Creator: `${companyName} VTMS Server`,
         },
@@ -216,7 +199,6 @@ export class PdfReceiptService {
       doc.on('data', (chunk) => buffers.push(chunk));
       doc.on('end', () => {
         const fullBuffer = Buffer.concat(buffers);
-        pdfCache.set(cacheKey, { buffer: fullBuffer, cachedAt: Date.now() });
         resolve(fullBuffer);
       });
       doc.on('error', (err) => reject(err));
@@ -671,14 +653,9 @@ export class PdfReceiptService {
   }
 
   /**
-   * Invalidate cache for a transaction when updated
+   * Invalidate cache for a transaction when updated (No-op: caching is disabled)
    */
-  public static invalidateCache(transactionId: string): void {
-    const prefix = transactionId.toUpperCase();
-    for (const key of pdfCache.keys()) {
-      if (key.startsWith(prefix)) {
-        pdfCache.delete(key);
-      }
-    }
+  public static invalidateCache(_transactionId: string): void {
+    // No-op: PDFs are always dynamically rendered fresh on-the-fly without cache
   }
 }

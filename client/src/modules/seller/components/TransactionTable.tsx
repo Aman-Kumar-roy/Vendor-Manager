@@ -19,12 +19,14 @@ import {
   Eye,
   Printer,
   Droplets,
+  Edit2,
 } from 'lucide-react';
 
 interface TransactionTableProps {
   transactions: Transaction[];
   seller?: Pick<Seller, 'name' | 'email' | 'phone' | 'address'>;
   onDeleteTransaction: (id: string) => void;
+  onEditTransaction?: (tx: Transaction) => void;
   onPrintReceipt?: (tx: Transaction) => void;
   onAddPaymentToOrder?: (deliveryId: string) => void;
 }
@@ -33,6 +35,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions,
   seller,
   onDeleteTransaction,
+  onEditTransaction,
   onPrintReceipt,
   onAddPaymentToOrder,
 }) => {
@@ -268,6 +271,15 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                       >
                         <Printer className="w-3.5 h-3.5" />
                         <span>Receipt</span>
+                      </button>
+                    )}
+                    {isAdmin && onEditTransaction && (
+                      <button
+                        onClick={() => onEditTransaction(tx)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                        title="Edit Transaction"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                     {isAdmin && (
@@ -526,6 +538,15 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                               title="Print Receipt"
                             >
                               <Printer className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {isAdmin && onEditTransaction && (
+                            <button
+                              onClick={() => onEditTransaction(tx)}
+                              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                              title="Edit Transaction"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                           {isAdmin && (

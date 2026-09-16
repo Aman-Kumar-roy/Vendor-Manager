@@ -48,20 +48,15 @@ export function reloadEnvIfNeeded(): void {
 export const env = {
   get PORT(): string {
     reloadEnvIfNeeded();
-    return process.env.PORT || '5000';
+    return (process.env.PORT || '5000').trim();
   },
   get MONGODB_URI(): string {
     reloadEnvIfNeeded();
-    const rawMongoUri =
-      process.env.MONGODB_URI ||
-      process.env.MONGO_URL ||
-      process.env.MONGODB_URL ||
-      process.env.DATABASE_URL;
-    return rawMongoUri ? rawMongoUri.trim().replace(/^["']|["']$/g, '') : '';
+    return (process.env.MONGODB_URI || '').trim().replace(/^["']|["']$/g, '');
   },
   get JWT_SECRET(): string {
     reloadEnvIfNeeded();
-    return (process.env.JWT_SECRET || 'roy').trim().replace(/^["']|["']$/g, '');
+    return (process.env.JWT_SECRET || '').trim().replace(/^["']|["']$/g, '');
   },
   get JWT_EXPIRES_IN(): string {
     reloadEnvIfNeeded();
@@ -69,7 +64,7 @@ export const env = {
   },
   get APP_ENV(): string {
     reloadEnvIfNeeded();
-    return process.env.APP_ENV || process.env.NODE_ENV || 'development';
+    return (process.env.APP_ENV || 'production').trim();
   },
   get APP_DEBUG(): boolean {
     reloadEnvIfNeeded();
@@ -77,54 +72,27 @@ export const env = {
   },
   get IS_PRODUCTION(): boolean {
     reloadEnvIfNeeded();
-    return process.env.APP_ENV === 'production' || process.env.NODE_ENV === 'production';
+    return this.APP_ENV === 'production';
   },
   get COMPANY_NAME(): string {
     reloadEnvIfNeeded();
-    return (process.env.VITE_COMPANY_NAME || process.env.COMPANY_NAME || 'Vasudha Polymer').trim().replace(/^["']|["']$/g, '');
+    return (process.env.VITE_COMPANY_NAME || '').trim().replace(/^["']|["']$/g, '');
   },
   get COMPANY_GST(): string {
     reloadEnvIfNeeded();
-    return (process.env.VITE_COMPANY_GST || process.env.COMPANY_GST || '07AAAAA0000A1Z5').trim().replace(/^["']|["']$/g, '');
+    return (process.env.VITE_COMPANY_GST || '').trim().replace(/^["']|["']$/g, '');
   },
   get COMPANY_PHONE(): string {
     reloadEnvIfNeeded();
-    return (process.env.VITE_COMPANY_PHONE || process.env.COMPANY_PHONE || '+91 98765 43210').trim().replace(/^["']|["']$/g, '');
+    return (process.env.VITE_COMPANY_PHONE || '').trim().replace(/^["']|["']$/g, '');
   },
   get COMPANY_ADDRESS(): string {
     reloadEnvIfNeeded();
-    return (process.env.VITE_COMPANY_ADDRESS || process.env.COMPANY_ADDRESS || 'Plot 42, Industrial Zone, New Delhi - 110020').trim().replace(/^["']|["']$/g, '');
-  },
-  get WHATSAPP_PROVIDER(): string {
-    reloadEnvIfNeeded();
-    return (process.env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
-  },
-  get WHATSAPP_ACCESS_TOKEN(): string {
-    reloadEnvIfNeeded();
-    return (process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN || '').trim().replace(/^["']|["']$/g, '');
-  },
-  get WHATSAPP_PHONE_NUMBER_ID(): string {
-    reloadEnvIfNeeded();
-    return (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID || '').trim().replace(/^["']|["']$/g, '');
-  },
-  get WHATSAPP_BUSINESS_ACCOUNT_ID(): string {
-    reloadEnvIfNeeded();
-    return (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || process.env.META_BUSINESS_ACCOUNT_ID || '').trim().replace(/^["']|["']$/g, '');
-  },
-  get META_ACCESS_TOKEN(): string {
-    return this.WHATSAPP_ACCESS_TOKEN;
-  },
-  get META_PHONE_NUMBER_ID(): string {
-    return this.WHATSAPP_PHONE_NUMBER_ID;
-  },
-  get META_WHATSAPP_NUMBER(): string {
-    reloadEnvIfNeeded();
-    return (process.env.META_WHATSAPP_NUMBER || process.env.WHATSAPP_NUMBER || process.env.VITE_COMPANY_PHONE || process.env.COMPANY_PHONE || '').trim().replace(/^["']|["']$/g, '');
+    return (process.env.VITE_COMPANY_ADDRESS || '').trim().replace(/^["']|["']$/g, '');
   },
   get PUBLIC_URL(): string {
     reloadEnvIfNeeded();
-    const configured = (process.env.PUBLIC_URL || process.env.API_BASE_URL || process.env.VITE_API_URL || '').trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
-    return configured || `http://localhost:${this.PORT}/api/v1`;
+    return (process.env.PUBLIC_URL || '').trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
   },
 };
 

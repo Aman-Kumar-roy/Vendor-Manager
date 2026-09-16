@@ -4,6 +4,7 @@ import { sellerApi } from "../api";
 import { Seller, CreateSellerDto, CreateTransactionDto, Transaction, TransactionType } from "../types";
 import { TransactionTable } from "../components/TransactionTable";
 import { AddTransactionModal } from "../components/AddTransactionModal";
+import { EditTransactionModal } from "../components/EditTransactionModal";
 import { TransactionReceipt } from "../components/TransactionReceipt";
 import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
 import { StatCard } from "../../../components/common/StatCard";
@@ -70,6 +71,7 @@ export const SellerDetailPage: React.FC = () => {
   });
 
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   const fetchSellerDetail = async (page = currentPage, limit = pageSize) => {
     if (!id) return;
@@ -102,6 +104,14 @@ export const SellerDetailPage: React.FC = () => {
     const res = await sellerApi.createTransaction(dto);
     if (res.success) {
       setToastMsg('Transaction created successfully.');
+      await fetchSellerDetail();
+    }
+  };
+
+  const handleUpdateTransaction = async (txId: string, data: Partial<CreateTransactionDto>) => {
+    const res = await sellerApi.updateTransaction(txId, data);
+    if (res.success) {
+      setToastMsg('Transaction updated successfully.');
       await fetchSellerDetail();
     }
   };
@@ -454,6 +464,7 @@ export const SellerDetailPage: React.FC = () => {
         <TransactionTable
           transactions={seller.transactions || []}
           onDeleteTransaction={handleDeleteTransaction}
+          onEditTransaction={(tx) => setEditingTx(tx)}
           onPrintReceipt={(tx) => setReceiptTx(tx)}
           seller={seller}
           onAddPaymentToOrder={(deliveryId) => {
@@ -581,6 +592,17 @@ export const SellerDetailPage: React.FC = () => {
         onConfirm={() => setAlertDialog({ isOpen: false, message: "" })}
         onCancel={() => setAlertDialog({ isOpen: false, message: "" })}
       />
+
+      {/* Edit Transaction Modal (Admin Only) */}
+      {editingTx && seller && (
+        <EditTransactionModal
+          isOpen={!!editingTx}
+          onClose={() => setEditingTx(null)}
+          transaction={editingTx}
+          sellerName={seller.name}
+          onSubmit={handleUpdateTransaction}
+        />
+      )}
 
       {/* Receipt Modal */}
       {receiptTx && seller && (

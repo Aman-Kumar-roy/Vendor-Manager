@@ -396,8 +396,8 @@ async function runApiTests() {
         assert(res.status === 400, `Expected status 400 for invalid layer count, got ${res.status}`);
       });
 
-      // 7d. Reject Foam on 500L Tank
-      await test('POST /api/v1/transactions (Reject foam type on 500L tank)', async () => {
+      // 7d. Allow Single and Double Foam on 500L Tank
+      await test('POST /api/v1/transactions (Allow single and double foam on 500L tank)', async () => {
         const res = await fetch(`${BASE_URL}/transactions`, {
           method: 'POST',
           headers: {
@@ -411,6 +411,9 @@ async function runApiTests() {
             tankItems: [{ size: 500, quantity: 2, layers: 4, foam: 'single' }],
           }),
         });
+        assert(res.status === 201, `Expected status 201 for 500L tank with single foam, got ${res.status}`);
+        const body = await res.json() as any;
+        assert(body.success === true, 'Expected success === true');
       });
 
       // 7e. Reject Invalid Foam Type for 1000L tank

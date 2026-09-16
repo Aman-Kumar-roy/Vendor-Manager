@@ -40,12 +40,7 @@ export const TankSelector: React.FC<TankSelectorProps> = ({
     onChangeItems(
       items.map((it) => {
         if (it.id !== id) return it;
-        const updated = { ...it, ...updates };
-        // If capacity is 500L, foam must strictly be 'none'
-        if (updated.size === 500) {
-          updated.foam = 'none';
-        }
-        return updated;
+        return { ...it, ...updates };
       })
     );
   };
@@ -53,16 +48,16 @@ export const TankSelector: React.FC<TankSelectorProps> = ({
   return (
     <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3.5">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-        <div>
+      <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3 flex-wrap">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <Box className="w-4 h-4 text-sky-400" />
-            <h4 className="text-xs font-extrabold text-white uppercase tracking-wider">
+            <Box className="w-4 h-4 text-sky-400 shrink-0" />
+            <h4 className="text-xs font-extrabold text-white uppercase tracking-wider truncate">
               Tank Variants &amp; Line Items
             </h4>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-            Strict sizes: 500L &amp; 1,000L (Layers 3–6, Foam on 1,000L)
+            Strict sizes: 500L &amp; 1,000L (Layers 3–6, Foam: None / Single / Double)
           </p>
         </div>
 
@@ -79,8 +74,7 @@ export const TankSelector: React.FC<TankSelectorProps> = ({
       {/* Variants List */}
       <div className="space-y-3">
         {items.map((item, idx) => {
-          const is1000 = item.size === 1000;
-          const foamLabel = is1000 && item.foam !== 'none' ? ` • ${item.foam} foam` : '';
+          const foamLabel = item.foam && item.foam !== 'none' ? ` • ${item.foam} foam` : '';
 
           return (
             <div
@@ -118,7 +112,7 @@ export const TankSelector: React.FC<TankSelectorProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleUpdateItem(item.id, { size: 500, foam: 'none' })}
+                    onClick={() => handleUpdateItem(item.id, { size: 500 })}
                     className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                       item.size === 500
                         ? 'bg-sky-600 border-sky-500 text-white shadow-sm ring-1 ring-sky-400'
@@ -169,32 +163,30 @@ export const TankSelector: React.FC<TankSelectorProps> = ({
                 </div>
               </div>
 
-              {/* 3. Foam Selection (1000L Only) */}
-              {is1000 && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Foam Type: <span className="text-emerald-400 font-bold uppercase">{item.foam}</span>
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(['none', 'single', 'double'] as const).map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => handleUpdateItem(item.id, { foam: f })}
-                        className={`py-1 px-2 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer text-center ${
-                          item.foam === f
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 ring-1 ring-emerald-500/30'
-                            : 'bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                        }`}
-                      >
-                        {f === 'none' ? 'None' : f === 'single' ? 'Single' : 'Double'}
-                      </button>
-                    ))}
-                  </div>
+              {/* 3. Foam Selection (500L & 1000L) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                    Foam Type: <span className="text-emerald-400 font-bold uppercase">{item.foam || 'none'}</span>
+                  </label>
                 </div>
-              )}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['none', 'single', 'double'] as const).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => handleUpdateItem(item.id, { foam: f })}
+                      className={`py-1 px-2 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer text-center ${
+                        (item.foam || 'none') === f
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      {f === 'none' ? 'None' : f === 'single' ? 'Single' : 'Double'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* 4. Quantity Stepper & Direct Input */}
               <div>

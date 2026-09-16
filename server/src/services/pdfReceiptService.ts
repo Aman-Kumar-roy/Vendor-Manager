@@ -22,6 +22,7 @@ export interface ReceiptDataInput {
   tank1000?: number;
   tank500_layers?: number | null;
   tank1000_layers?: number | null;
+  tank500_foam?: 'none' | 'single' | 'double' | null;
   tank1000_foam?: 'none' | 'single' | 'double' | null;
   previousDues?: number;
   currentDues?: number;
@@ -154,7 +155,7 @@ export class PdfReceiptService {
             description: 'Polymer Water Tank',
             size: Number(item.size),
             layers: item.layers || null,
-            foam: item.size === 1000 && item.foam && item.foam !== 'none' ? item.foam : null,
+            foam: item.foam && item.foam !== 'none' ? item.foam : null,
             quantity: qty,
           });
         }
@@ -164,6 +165,7 @@ export class PdfReceiptService {
             description: 'Polymer Water Tank',
             size: 500,
             layers: transaction.tank500_layers || null,
+            foam: transaction.tank500_foam && transaction.tank500_foam !== 'none' ? transaction.tank500_foam : null,
             quantity: t500,
           });
         }

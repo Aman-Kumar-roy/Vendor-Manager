@@ -158,6 +158,7 @@ export class TransactionController {
           tank1000: tx.tank1000 || 0,
           tank500_layers: tx.tank500_layers || null,
           tank1000_layers: tx.tank1000_layers || null,
+          tank500_foam: tx.tank500_foam || 'none',
           tank1000_foam: tx.tank1000_foam || 'none',
           paymentMode: tx.paymentMode || null,
           createdAt: tx.createdAt,
@@ -245,6 +246,7 @@ export class TransactionController {
         tank2000,
         tank500_layers,
         tank1000_layers,
+        tank500_foam,
         tank1000_foam,
         paymentMode,
         date,
@@ -288,6 +290,7 @@ export class TransactionController {
       let qty1000 = 0;
       let parsed500Layers: number | null = null;
       let parsed1000Layers: number | null = null;
+      let parsed500Foam: 'none' | 'single' | 'double' = 'none';
       let parsed1000Foam: 'none' | 'single' | 'double' = 'none';
 
       if (type === 'DELIVERY') {
@@ -325,36 +328,30 @@ export class TransactionController {
             }
 
             let foam: 'none' | 'single' | 'double' = 'none';
-            if (size === 1000 && item.foam !== undefined && item.foam !== null) {
+            if (item.foam !== undefined && item.foam !== null) {
               const fStr = String(item.foam).trim().toLowerCase();
               if (!['none', 'single', 'double'].includes(fStr)) {
                 res.status(400).json({
                   success: false,
-                  error: `Tank Variant #${i + 1}: Foam type for 1000L tank must be 'none', 'single', or 'double'.`,
-                  message: `Tank Variant #${i + 1}: Foam type for 1000L tank must be 'none', 'single', or 'double'.`,
+                  error: `Tank Variant #${i + 1}: Foam type must be 'none', 'single', or 'double'.`,
+                  message: `Tank Variant #${i + 1}: Foam type must be 'none', 'single', or 'double'.`,
                 });
                 return;
               }
               foam = fStr as any;
-            } else if (size === 500 && item.foam && String(item.foam).trim().toLowerCase() !== 'none') {
-              res.status(400).json({
-                success: false,
-                error: `Tank Variant #${i + 1}: Foam type is only applicable for 1000L tanks.`,
-                message: `Tank Variant #${i + 1}: Foam type is only applicable for 1000L tanks.`,
-              });
-              return;
             }
 
             validatedTankItems.push({
               size,
               quantity: qty,
               layers,
-              foam: size === 1000 ? foam : 'none',
+              foam,
             });
 
             if (size === 500) {
               qty500 += qty;
               parsed500Layers = layers;
+              parsed500Foam = foam;
             } else if (size === 1000) {
               qty1000 += qty;
               parsed1000Layers = layers;
@@ -380,11 +377,25 @@ export class TransactionController {
               l500 = parsed;
             }
             parsed500Layers = l500;
+
+            if (tank500_foam !== undefined && tank500_foam !== null) {
+              const foamStr = String(tank500_foam).trim().toLowerCase();
+              if (!['none', 'single', 'double'].includes(foamStr)) {
+                res.status(400).json({
+                  success: false,
+                  error: "Foam type for 500L tank must be 'none', 'single', or 'double'.",
+                  message: "Foam type for 500L tank must be 'none', 'single', or 'double'.",
+                });
+                return;
+              }
+              parsed500Foam = foamStr as any;
+            }
+
             validatedTankItems.push({
               size: 500,
               quantity: qty500,
               layers: parsed500Layers,
-              foam: 'none',
+              foam: parsed500Foam,
             });
           }
 
@@ -461,6 +472,7 @@ export class TransactionController {
         tank1000: qty1000,
         tank500_layers: parsed500Layers,
         tank1000_layers: parsed1000Layers,
+        tank500_foam: parsed500Foam,
         tank1000_foam: parsed1000Foam,
         previousDues,
         paymentMode: type === 'PAYMENT' ? (paymentMode ? String(paymentMode).trim() : null) : null,
@@ -498,6 +510,7 @@ export class TransactionController {
         tank1000: transaction.tank1000 || 0,
         tank500_layers: transaction.tank500_layers || null,
         tank1000_layers: transaction.tank1000_layers || null,
+        tank500_foam: transaction.tank500_foam || 'none',
         tank1000_foam: transaction.tank1000_foam || 'none',
         paymentMode: transaction.paymentMode || null,
         createdAt: transaction.createdAt,
@@ -686,7 +699,7 @@ export class TransactionController {
             capacity: `${item.size}L`,
             quantity: item.quantity,
             layers: item.layers || null,
-            foam: item.size === 1000 ? (item.foam || 'none') : undefined,
+            foam: item.foam && item.foam !== 'none' ? item.foam : (item.foam || 'none'),
             unitName: 'Units',
           });
         }
@@ -697,6 +710,7 @@ export class TransactionController {
             capacity: '500L',
             quantity: t500,
             layers: transaction.tank500_layers || null,
+            foam: transaction.tank500_foam || 'none',
             unitName: 'Units',
           });
         }
@@ -791,6 +805,7 @@ export class TransactionController {
         tank2000,
         tank500_layers,
         tank1000_layers,
+        tank500_foam,
         tank1000_foam,
         paymentMode,
         previousDues,
@@ -846,7 +861,7 @@ export class TransactionController {
               res.status(400).json({ success: false, error: `Tank Variant #${i + 1}: Layers must be an integer between 3 and 6.`, message: `Tank Variant #${i + 1}: Layers must be an integer between 3 and 6.` });
               return;
             }
-            const foam = size === 1000 && item.foam ? String(item.foam).toLowerCase() : 'none';
+            const foam = item.foam && ['none', 'single', 'double'].includes(String(item.foam).toLowerCase()) ? String(item.foam).toLowerCase() : 'none';
             validated.push({ size, quantity: qty, layers, foam });
             if (size === 500) q500 += qty;
             if (size === 1000) q1000 += qty;
@@ -868,8 +883,18 @@ export class TransactionController {
               return;
             }
             transaction.tank500_layers = l500;
+
+            if (tank500_foam !== undefined) {
+              const foamStr = String(tank500_foam).trim().toLowerCase();
+              if (!['none', 'single', 'double'].includes(foamStr)) {
+                res.status(400).json({ success: false, error: "Foam type for 500L tank must be 'none', 'single', or 'double'.", message: "Foam type for 500L tank must be 'none', 'single', or 'double'." });
+                return;
+              }
+              transaction.tank500_foam = foamStr as any;
+            }
           } else {
             transaction.tank500_layers = null;
+            transaction.tank500_foam = 'none';
           }
 
           if (qty1000 > 0) {
@@ -920,6 +945,7 @@ export class TransactionController {
             tank1000: transaction.tank1000 || 0,
             tank500_layers: transaction.tank500_layers || null,
             tank1000_layers: transaction.tank1000_layers || null,
+            tank500_foam: transaction.tank500_foam || 'none',
             tank1000_foam: transaction.tank1000_foam || 'none',
             paymentMode: transaction.paymentMode || null,
             updatedAt: transaction.updatedAt,

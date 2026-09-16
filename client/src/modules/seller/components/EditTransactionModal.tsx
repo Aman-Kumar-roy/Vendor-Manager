@@ -54,7 +54,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             size: it.size === 1000 ? 1000 : 500,
             quantity: Number(it.quantity) || 1,
             layers: Number(it.layers) || 4,
-            foam: it.size === 1000 ? (it.foam || 'none') : 'none',
+            foam: it.foam || 'none',
           }))
         );
       } else {
@@ -65,7 +65,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             size: 500,
             quantity: Number(transaction.tank500),
             layers: Number(transaction.tank500_layers) || 4,
-            foam: 'none',
+            foam: transaction.tank500_foam || 'none',
           });
         }
         if (Number(transaction.tank1000) > 0) {
@@ -142,7 +142,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           size: it.size,
           quantity: it.quantity,
           layers: it.layers,
-          foam: it.size === 1000 ? it.foam : 'none',
+          foam: it.foam || 'none',
         }));
       } else {
         payload.paymentMode = paymentMode;

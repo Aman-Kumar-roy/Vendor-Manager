@@ -150,7 +150,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           size: t.size,
           quantity: t.quantity,
           layers: t.layers,
-          foam: t.size === 1000 ? t.foam : ('none' as const),
+          foam: t.foam || ('none' as const),
         }));
 
       await onSubmit({
@@ -163,6 +163,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         tank500: type === 'DELIVERY' ? total500 : 0,
         tank1000: type === 'DELIVERY' ? total1000 : 0,
         tank500_layers: type === 'DELIVERY' && total500 > 0 ? (formattedItems.find(i => i.size === 500)?.layers || 4) : undefined,
+        tank500_foam: type === 'DELIVERY' && total500 > 0 ? (formattedItems.find(i => i.size === 500)?.foam || 'none') : undefined,
         tank1000_layers: type === 'DELIVERY' && total1000 > 0 ? (formattedItems.find(i => i.size === 1000)?.layers || 4) : undefined,
         tank1000_foam: type === 'DELIVERY' && total1000 > 0 ? (formattedItems.find(i => i.size === 1000)?.foam || 'none') : undefined,
         tankItems: type === 'DELIVERY' && formattedItems.length > 0 ? formattedItems : undefined,
@@ -525,7 +526,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         key={i}
                         className="px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[11px]"
                       >
-                        {t.quantity}× {t.size}L ({t.layers}L{t.size === 1000 && t.foam !== 'none' ? `, ${t.foam}` : ''})
+                        {t.quantity}× {t.size}L ({t.layers}L{t.foam && t.foam !== 'none' ? `, ${t.foam}` : ''})
                       </span>
                     ))}
                 </div>

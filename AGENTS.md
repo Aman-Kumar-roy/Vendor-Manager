@@ -71,8 +71,8 @@
 - **Dynamic Line Items**: Deliveries accept dynamic line items via `tankItems: [{ size: 500 | 1000, quantity: number, layers: number, foam?: 'none' | 'single' | 'double' }]`.
 - **Tank Layers**:
   - Layers: Number, integer between 3 and 6 mandatory per tank item.
-- **Foam Type (1000L Tanks Only)**:
-  - Foam type: `none`, `single`, `double` (default `'none'`). Prohibited on 500L tanks.
+- **Foam Type (500L and 1000L Tanks)**:
+  - Foam type: `none`, `single`, `double` (default `'none'`). Supported across both 500L and 1000L tanks.
 - **Back Due Tracking**:
   - `previousDues`: Outstanding seller dues strictly before this transaction.
   - `currentDues`: Outstanding seller dues immediately after this transaction.

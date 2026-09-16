@@ -163,7 +163,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
             size: Number(it.size) === 1000 ? 1000 : 500,
             quantity: qty,
             layers: it.layers ? Number(it.layers) : null,
-            foam: Number(it.size) === 1000 ? (it.foam || 'none') : undefined,
+            foam: it.foam && it.foam !== 'none' ? it.foam : undefined,
           });
         }
       });
@@ -172,6 +172,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
       const t1000 = Number(transaction?.tank1000 ?? serverReceipt?.transaction?.tank1000 ?? 0);
       const t500Layers = transaction?.tank500_layers ?? serverReceipt?.transaction?.tank500_layers;
       const t1000Layers = transaction?.tank1000_layers ?? serverReceipt?.transaction?.tank1000_layers;
+      const t500Foam = transaction?.tank500_foam ?? serverReceipt?.transaction?.tank500_foam;
       const t1000Foam = transaction?.tank1000_foam ?? serverReceipt?.transaction?.tank1000_foam;
 
       if (t500 > 0) {
@@ -179,6 +180,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
           size: 500,
           quantity: t500,
           layers: t500Layers ? Number(t500Layers) : null,
+          foam: t500Foam || 'none',
         });
       }
       if (t1000 > 0) {
@@ -414,7 +416,7 @@ export const TransactionReceipt: React.FC<TransactionReceiptProps> = ({
                               <td className="py-1.5 px-3 font-bold text-slate-900">{item.size}L Tank</td>
                               <td className="py-1.5 px-3 text-slate-600">
                                 {item.layers ? `${item.layers} Layers` : 'Standard'}
-                                {item.size === 1000 && item.foam && item.foam !== 'none' ? ` • ${item.foam.charAt(0).toUpperCase() + item.foam.slice(1)} Foam` : ''}
+                                {item.foam && item.foam !== 'none' ? ` • ${item.foam.charAt(0).toUpperCase() + item.foam.slice(1)} Foam` : ''}
                               </td>
                               <td className="py-1.5 px-3 text-right font-mono font-extrabold text-blue-700">{item.quantity} Units</td>
                             </tr>

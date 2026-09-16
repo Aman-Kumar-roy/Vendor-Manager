@@ -22,6 +22,7 @@ export interface Transaction {
   tank1000?: number;
   tank500_layers?: number | null;
   tank1000_layers?: number | null;
+  tank500_foam?: 'none' | 'single' | 'double' | null;
   tank1000_foam?: 'none' | 'single' | 'double' | null;
   tankItems?: TankItemDto[];
   paymentMode?: string | null;
@@ -98,6 +99,7 @@ export interface CreateTransactionDto {
   tank1000?: number;
   tank500_layers?: number;
   tank1000_layers?: number;
+  tank500_foam?: 'none' | 'single' | 'double';
   tank1000_foam?: 'none' | 'single' | 'double';
   tankItems?: TankItemDto[];
   paymentMode?: string;

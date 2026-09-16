@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Integrated amber edit action button into `TransactionTable` across both desktop and mobile card views with instant in-place ledger revalidation.
 - **Flexible Tank Line Items & Layer/Foam Support**:
   - Deliveries support dynamic line items via `tankItems: [{ size: 500 | 1000, quantity, layers: 3-6, foam?: 'none' | 'single' | 'double' }]`.
-  - Enforced 3 to 6 layers per tank item; foam option strictly available for 1000L tanks.
+  - Enforced 3 to 6 layers per tank item; foam option (`none`, `single`, `double`) supported uniformly across both 500L and 1000L tanks.
   - Complete removal of legacy 2000L tank size; strictly enforced 500L and 1000L polymer water storage tanks.
+  - Responsive Add Variant header layout preventing button overflow across all screen sizes.
+  - 1:1 pixel-parity Shimmer skeleton loading for Dashboard, Tank Delivery Records, Collection Efficiency, Vendors, Transactions, Receipts, and Reports.
 - **Authoritative Ledger & Advance Dues Tracking**:
   - Every transaction computes and records `previousDues` and `currentDues` dynamically from database state.
   - Full support for advance balance tracking (`+ ₹ XX,XXX.00 (Advance)`) across web, mobile, and server PDF vouchers.

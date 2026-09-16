@@ -19,6 +19,7 @@ export interface ITransaction extends Document {
   tank1000: number;
   tank500_layers?: number | null;
   tank1000_layers?: number | null;
+  tank500_foam?: 'none' | 'single' | 'double';
   tank1000_foam?: 'none' | 'single' | 'double';
   previousDues?: number;
   currentDues?: number;
@@ -54,6 +55,7 @@ const TransactionSchema: Schema = new Schema(
     tank1000: { type: Number, default: 0 },
     tank500_layers: { type: Number, min: 3, max: 6, default: null },
     tank1000_layers: { type: Number, min: 3, max: 6, default: null },
+    tank500_foam: { type: String, enum: ['none', 'single', 'double'], default: 'none' },
     tank1000_foam: { type: String, enum: ['none', 'single', 'double'], default: 'none' },
     previousDues: { type: Number, default: 0 },
     paymentMode: { type: String, default: null },

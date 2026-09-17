@@ -29,6 +29,7 @@ const formatCurrency = (val: number = 0) =>
 const formatDate = (dateStr: string) => {
   try {
     return new Date(dateStr).toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -41,11 +42,13 @@ const formatDate = (dateStr: string) => {
 const formatDateTime = (dateStr: string) => {
   try {
     return new Date(dateStr).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
     });
   } catch {
     return dateStr;

@@ -74,6 +74,7 @@ export class PdfReceiptService {
     try {
       const dateObj = new Date(d);
       return dateObj.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -88,11 +89,13 @@ export class PdfReceiptService {
     try {
       const dateObj = new Date(d);
       return dateObj.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         year: 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       });
     } catch {
       return String(d);
@@ -297,9 +300,29 @@ export class PdfReceiptService {
       doc.roundedRect(vendorBoxX, vendorBoxY, vendorBoxWidth, vendorBoxContentHeight, 8).fill('#f8fafc');
       doc.roundedRect(vendorBoxX, vendorBoxY, vendorBoxWidth, vendorBoxContentHeight, 8).lineWidth(1).stroke('#e2e8f0');
 
-      // Vendor header icon and label
+      // Vendor header icon (Building2) and label
+      const bIconX = vendorBoxX + 12;
+      const bIconY = vendorBoxY + 9;
+      doc.save();
+      doc.translate(bIconX, bIconY);
+      doc.scale(0.42);
+      // Main tower
+      doc.rect(4, 2, 16, 20).lineWidth(1.8).stroke('#94a3b8');
+      // Left wing
+      doc.path('M 4 10 L 0 10 L 0 22 L 4 22').lineWidth(1.8).stroke('#94a3b8');
+      // Right wing
+      doc.path('M 20 8 L 24 8 L 24 22 L 20 22').lineWidth(1.8).stroke('#94a3b8');
+      // Window dashes
+      doc.moveTo(8, 6).lineTo(12, 6).lineWidth(1.5).stroke('#94a3b8');
+      doc.moveTo(14, 6).lineTo(16, 6).lineWidth(1.5).stroke('#94a3b8');
+      doc.moveTo(8, 11).lineTo(12, 11).lineWidth(1.5).stroke('#94a3b8');
+      doc.moveTo(14, 11).lineTo(16, 11).lineWidth(1.5).stroke('#94a3b8');
+      doc.moveTo(8, 16).lineTo(12, 16).lineWidth(1.5).stroke('#94a3b8');
+      doc.moveTo(14, 16).lineTo(16, 16).lineWidth(1.5).stroke('#94a3b8');
+      doc.restore();
+
       doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#64748b');
-      doc.text('SELLER / VENDOR DETAILS', vendorBoxX + 12, vendorBoxY + 10, { characterSpacing: 0.8 });
+      doc.text('SELLER / VENDOR DETAILS', vendorBoxX + 26, vendorBoxY + 10, { characterSpacing: 0.8 });
 
       // GSTIN badge if present
       if (vendorGst) {
@@ -442,15 +465,19 @@ export class PdfReceiptService {
         const itemHeaderHeight = 18;
         doc.roundedRect(tableX, curY, tableWidth, itemHeaderHeight, 4).fill('#f1f5f9');
 
-        // Blue vector water drop icon
+        // Blue vector water drop icon (matching Lucide Droplets)
         const dropX = tableX + 8;
-        const dropY = curY + 4;
+        const dropY = curY + 3.5;
         doc.save();
-        doc.path(`M ${dropX + 3.5} ${dropY} C ${dropX + 1.5} ${dropY + 3.5} ${dropX} ${dropY + 5.5} ${dropX} ${dropY + 7} C ${dropX} ${dropY + 9} ${dropX + 1.5} ${dropY + 10} ${dropX + 3.5} ${dropY + 10} C ${dropX + 5.5} ${dropY + 10} ${dropX + 7} ${dropY + 9} ${dropX + 7} ${dropY + 7} C ${dropX + 7} ${dropY + 5.5} ${dropX + 5.5} ${dropY + 3.5} ${dropX + 3.5} ${dropY} Z`).fill('#2563eb');
+        doc.translate(dropX, dropY);
+        doc.scale(0.44);
+        doc.path('M 12 2 C 12 2 5 9.5 5 14 C 5 17.866 8.134 21 12 21 C 15.866 21 19 17.866 19 14 C 19 9.5 12 2 12 2 Z')
+          .fillAndStroke('#2563eb', '#1d4ed8');
+        doc.circle(9.5, 13.5, 1.8).fill('#93c5fd');
         doc.restore();
 
         doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#475569');
-        doc.text('ITEMIZED TANKS DELIVERED', tableX + 19, curY + 5, { characterSpacing: 0.5 });
+        doc.text('ITEMIZED TANKS DELIVERED', tableX + 22, curY + 5, { characterSpacing: 0.5 });
         curY += itemHeaderHeight + 4;
 
         // Column Titles
@@ -627,11 +654,27 @@ export class PdfReceiptService {
       doc.moveTo(tableX, curY).lineTo(tableX + tableWidth, curY).lineWidth(0.5).dash(2, { space: 2 }).stroke('#e2e8f0');
       doc.undash();
 
+      const footerLabel = `Official Computer Generated Document  •  ${companyName}`;
+      doc.font('Helvetica').fontSize(7.5);
+      const footerTextW = doc.widthOfString(footerLabel);
+      const checkIconSize = 9;
+      const totalFooterW = checkIconSize + 5 + footerTextW;
+      const footerStartX = tableX + (tableWidth - totalFooterW) / 2;
+
+      // Green CheckCircle2 / Verified Tick Icon
+      const checkIconX = footerStartX;
+      const checkIconY = curY + 7.5;
+      doc.save();
+      doc.translate(checkIconX, checkIconY);
+      doc.scale(0.38);
+      // Green Circle background & border
+      doc.circle(12, 12, 11).fillAndStroke('#ecfdf5', '#059669').lineWidth(1.8);
+      // Clean Checkmark Tick
+      doc.path('M 7 12.5 L 10.5 16 L 17 8.5').lineWidth(2.5).stroke('#059669');
+      doc.restore();
+
       doc.font('Helvetica').fontSize(7.5).fillColor('#64748b');
-      doc.text(`Official Computer Generated Document  •  ${companyName}`, tableX, curY + 8, {
-        width: tableWidth,
-        align: 'center',
-      });
+      doc.text(footerLabel, footerStartX + checkIconSize + 5, curY + 8);
 
       doc.font('Helvetica').fontSize(7).fillColor('#94a3b8');
       doc.text(PdfReceiptService.formatDateTime(new Date()), tableX, curY + 20, {

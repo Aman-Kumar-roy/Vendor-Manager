@@ -9,7 +9,7 @@ export async function connectMongoDB(): Promise<typeof mongoose> {
   }
 
   if (!env.MONGODB_URI) {
-    const errorMsg = '⚠️ MongoDB URI is missing. Please set MONGODB_URI (or MONGO_URL / DATABASE_URL) in your Railway Environment Variables.';
+    const errorMsg = '⚠️ MongoDB URI is missing. Please set MONGODB_URI in your .env file.';
     console.warn(errorMsg);
     throw new Error(errorMsg);
   }
